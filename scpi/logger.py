@@ -32,6 +32,10 @@
 
 from datetime import datetime as _datetime
 from threading import currentThread as _currentThread
+from threading import Lock as _Lock
+
+global lock
+lock  = _Lock()
 
 _logger_ERROR   = 1
 _logger_WARNING = 2
@@ -48,16 +52,29 @@ class Logger:
              _logger_INFO:   'INFO',
              _logger_DEBUG:  'DEBUG'}
 
-    def __init__(self,debug):
+    def __init__(self,parent=None,debug=False):
+        self._name = "Logger"
+        self._parent = parent
         self._debugFlag = debug
+        #self._info("debug=%s"%self._debugFlag)
+
+    @property
+    def depth(self):
+        depth = 0
+        parent = self._parent
+        while parent != None:
+            parent = parent._parent
+            depth += 1
+        return depth
 
     @property
     def _threadId(self):
         return _currentThread().getName()
 
     def _print(self,msg,type):
-        when = _datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        print("%10s\t%s\t%s\t%s\t%s"%(self._threadId,type,when,self._name,msg))
+        with lock:
+            when = _datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            print("%s\t%s\t%s\t%s\t%s"%(self._threadId,type,when,self._name,msg))
 
     def _error(self,msg):
         self._print(msg,self._type[_logger_ERROR])
