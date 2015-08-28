@@ -30,41 +30,34 @@
 ##
 ###############################################################################
 
-from Cython.Build import cythonize
-from Cython.Distutils import build_ext
-from distutils.core import setup
-from distutils.extension import Extension
-import sys
-import subprocess
-import version
 
-sourcefiles = ["scpi.pyx"]
+from setuptools import setup, find_packages
+from scpi import version
 
-ext_modules = [Extension("scpi",sourcefiles,language='c++')]
 
-setup(
-  name = 'scpi',
-  license = "GPLv3+",
-  description = "Python module to provide scpi functionality to an instrument",
-  cmdclass = {'build_ext': build_ext},
-  ext_modules = cythonize(ext_modules),
-  version = version.version(),
-  author = "Sergi Blanch-Torn\'e",
-  author_email = "sblanch@cells.es",
-  classifiers = ['Development Status :: 1 - Planning',
-                 'Intended Audience :: Developers',
-                 'Intended Audience :: Science/Research',
-                 'License :: OSI Approved :: '\
-                    'GNU General Public License v3 or later (GPLv3+)',
-                 'Operating System :: POSIX',
-                 'Programming Language :: Cython',
-                 'Programming Language :: Python',
-                 'Topic :: Scientific/Engineering :: '\
-                    'Interface Engine/Protocol Translator',
-                 'Topic :: Software Development :: Embedded Systems',
-                 'Topic :: Software Development :: Libraries :: '\
-                    'Python Modules',
-                 ''],
+setup(name = 'scpi',
+      license = "GPLv3+",
+      description = "Python module to provide scpi functionality "\
+                    "from instrument side",
+      version = version.version(),
+      author = "Sergi Blanch-Torn\'e",
+      author_email = "sblanch@cells.es",
+      classifiers = ['Development Status :: 1 - Planning',
+                     'Intended Audience :: Developers',
+                     'Intended Audience :: Science/Research',
+                     'License :: OSI Approved :: '\
+                        'GNU General Public License v3 or later (GPLv3+)',
+                     'Operating System :: POSIX',
+                     #'Programming Language :: Cython',
+                     'Programming Language :: Python',
+                     'Topic :: Scientific/Engineering :: '\
+                        'Interface Engine/Protocol Translator',
+                     'Topic :: Software Development :: Embedded Systems',
+                     'Topic :: Software Development :: Libraries :: '\
+                        'Python Modules',
+                     ''],
+      packages=find_packages(),
+      url="https://github.com/srgblnch/scpi",
 )
 
 #for the classifiers review see:
