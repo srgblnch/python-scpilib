@@ -83,6 +83,8 @@ class DictKey(_Logger,str):
             otherName = other._name.lower()
         elif type(other) == str:
             otherName = other.lower()
+        else:
+            otherName = ''
         selfName = self._name.lower()
         self._debug("Comparing %s to %s"%(selfName,otherName))
         while len(selfName) >= len(otherName) and \
@@ -117,6 +119,14 @@ class Attribute(DictKey):
         self._parent = None
         self._read_cb = None
         self._write_cb = None
+
+    def __str__(self):
+        repr = "%s"%(self._name)
+        parent = self._parent
+        while parent != None and parent._name != None:
+            repr = "".join("%s:%s"%(parent._name,repr))
+            parent = parent._parent
+        return repr
 
     def __repr__(self):
         indentation = "\t"*self.depth
@@ -192,16 +202,28 @@ class Component(_Logger,dict):
         self._parent = None
         self._defaultKey = None
     
+    def __str__(self):
+        repr = "%s"%(self._name)
+        parent = self._parent
+        while parent != None and parent._name != None:
+            repr = "".join("%s:%s"%(parent._name,repr))
+            parent = parent._parent
+        return repr
+    
     def __repr__(self):
         indentation = "\t"*self.depth
         repr = ""
         for key in self.keys():
             item = dict.__getitem__(self, key)
             #FIXME: ugly
-            if type(item) == Attribute:
+            if isinstance(item,Attribute):
                 repr = "".join("%s\n%s%r"%(repr,indentation,key))
             else:
-                repr = "".join("%s\n%s%r:%r"%(repr,indentation,key,item))
+                if item.default != None:
+                    repr = "".join("%s\n%s%r: (default %s) %r"
+                                   %(repr,indentation,key,item.default,item))
+                else:
+                    repr = "".join("%s\n%s%r:%r"%(repr,indentation,key,item))
         return repr
 
     @property

@@ -60,7 +60,7 @@ class scpi(_Logger):
         _Logger.__init__(self,debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree
-        self._info("Given commands: %s"%(self._commandTree))
+        self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
         if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
             local = services & TCPLISTENER_LOCAL
@@ -142,21 +142,34 @@ from logger import printHeader
 
 def testScpi():
     from commands import testAttr
-    printHeader("Testing scpi main class")
+    printHeader("Testing scpi main class (version %s)"%(_version()))
     commandSet = testAttr(output=False)
     scpiObj = scpi(commandSet,TCPLISTENER_LOCAL,debug=False)
-    print("Requested upper current limit: %s"
-          %(scpiObj.input("SOUR:CURR:UPPER?")))
-    print("Requested lower current limit: %s"
-          %(scpiObj.input("SOUR:CURR:LOWER?")))
-    print("Set the current lower limit to -50, and the answer is: %s"
-          %(scpiObj.input("SOUR:CURR:LOWER -50")))
-    print("Request again the current lower limit: %s"
-          %(scpiObj.input("SOUR:CURR:LOWER?")))
-    print("Request lower voltage limit: %s"
-          %(scpiObj.input("SOUR:VOLT:LOWER?")))
-    print("Request voltage value: %s"%(scpiObj.input("SOUR:VOLT:VALU?")))
-    print("Request voltage using default: %s"%(scpiObj.input("SOUR:VOLT?")))
+    cmd = "SOUR:CURR:UPPER?"
+    print("Requested upper current limit (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOU:CURRRI:UP?"
+    print("Requested something that cannot be requested (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR:LOWER?"
+    print("Requested lower current limit (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR:LOWER -50"
+    print("Set the current lower limit to -50 (%s), and the answer is: %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR:LOWER?"
+    print("Request again the current lower limit (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:VOLT:LOWER?"
+    print("Request lower voltage limit (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:VOLT:VALU?"
+    print("Request voltage value (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:VOLT?"
+    print("Request voltage using default (%s): %s"%(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR?;SOUR:VOLT?"
+    print("Concatenate 2 commands (%s): %s"%(cmd,scpiObj.input(cmd)))
     #end
     scpiObj.__del__()
 
