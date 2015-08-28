@@ -1,5 +1,5 @@
 ###############################################################################
-## file :               commands.pyx
+## file :               commands.py
 ##
 ## description :        Python module to provide scpi functionality to an 
 ##                      instrument.
@@ -41,7 +41,6 @@
 
 
 from logger import Logger as _Logger
-from logger import printHeader
 
 
 class DictKey(_Logger,str):
@@ -51,7 +50,7 @@ class DictKey(_Logger,str):
     '''
     def __init__(self,value,minimum=4,debug=False,*args,**kargs):
         #super(DictKey,self).__init__(value,minimum,*args,**kargs)
-        _Logger.__init__(self,debug)
+        _Logger.__init__(self,debug=debug)
         str.__init__(value)
         self._name = value
         self._minimum = minimum
@@ -110,64 +109,106 @@ class DictKey(_Logger,str):
 class Attribute(DictKey):
     '''
         Leaf node of the scpi command tree
+        TODO: explain property_cb difference with {read,write}_cb
     '''
-    def __init__(self,name,read_callback=None,write_callback=None,
-                 *args,**kargs):
+    def __init__(self,name,*args,**kargs):
         #super(Attribute,self).__init__(*args,**kargs)
         DictKey.__init__(self,name,*args,**kargs)
-        self._read_callback = read_callback
-        self._write_callback = write_callback
+        self._parent = None
+        self._read_cb = None
+        self._write_cb = None
+
+    def __repr__(self):
+        indentation = "\t"*self.depth
+        return ""#.join("\n%s%s"%(indentation,DictKey.__repr__(self)))
 
     @property
-    def read_callback(self):
-        return self._read_callback
+    def parent(self):
+        return self._parent
     
-    @read_callback.setter
-    def read_callback(self,value):
-        self._read_callback = value
+    @parent.setter
+    def parent(self,value):
+        self._parent = value
+
+#    @property
+#    def property_cb(self):
+#        if self._read_cb == self._write_cb or self._write_cb == None:
+#            return self._read_cb
+#        return None
+#        
+#    @property_cb.setter
+#    def property_cb(self,cb):
+#        self._property_cb = cb
+
+    @property
+    def read_cb(self):
+        return self._read_cb
+    
+    @read_cb.setter
+    def read_cb(self,value):
+        self._read_cb = value
 
     def read(self):
-        self._read_callback()
+        return self._read_cb()
     
     @property
-    def write_callback(self):
-        return self._write_callback
+    def write_cb(self):
+        return self._write_cb
     
-    @write_callback.setter
-    def write_callback(self,value):
-        self._write_callback = value
+    @write_cb.setter
+    def write_cb(self,value):
+        self._write_cb = value
 
     def write(self,value):
-        self._write_callback(value)
+        self._write_cb(value)
+
+
+def BuildAttribute(name,parent,readcb=None,writecb=None):
+    attr = Attribute(name)
+    attr.parent = parent
+    if parent != None:
+        parent[name] = attr
+    attr.read_cb = readcb
+    attr.write_cb = writecb
+    return attr
+
 
 #TODO: DictKeys that ends with numbers (that represents something like channels
 #      shall not include the number in the name and shoud search for 
 #      correspondence.
+#TODO: default attribute for a component
 
 class Component(_Logger,dict):
     '''
         Intermediated nodes of the scpi command tree.
     '''
-    def __init__(self,parent=None,debug=False,*args,**kargs):
+    def __init__(self,name=None,debug=False,*args,**kargs):
         #super(Component,self).__init__(debug,*args,**kargs)
-        _Logger.__init__(self,debug)
+        _Logger.__init__(self,debug=debug)
         dict.__init__(self,args,**kargs)
-        self._name = dict.get(self,'name_label')
-        self._parent = parent
+        self._name = name
+        self._parent = None
     
     def __repr__(self):
-        depth = 0
-        parent = self._parent
-        while parent != None:
-            parent = parent._parent
-            depth += 1
-        indentation = "\t"*depth
+        indentation = "\t"*self.depth
         repr = ""
         for key in self.keys():
-            repr = "".join("%s\n%s%r:%r"
-                           %(repr,indentation,key,dict.__getitem__(self, key)))
+            item = dict.__getitem__(self, key)
+            #FIXME: ugly
+            if type(item) == Attribute:
+                repr = "".join("%s\n%s%r"%(repr,indentation,key))
+            else:
+                repr = "".join("%s\n%s%r:%r"%(repr,indentation,key,item))
         return repr
+
+    @property
+    def parent(self):
+        return self._parent
     
+    @parent.setter
+    def parent(self,value):
+        self._parent = value
+
     def __getitem__(self, key):
         '''
             Given a keyword it checks if it matches, at least the first 
@@ -201,81 +242,113 @@ class Component(_Logger,dict):
         self._debug("SET %s['%r'] = %s"
                    %(str(dict.get(self,'name_label')),key,str(val)))
         dict.__setitem__(self,key,val)
+        val.parent = self
 
 
-def testDictKey():
-    printHeader("Tests for the DictKey object")
+def BuildComponent(name=None,parent=None):
+    component = Component(name=name)
+    component.parent = parent
+    if parent != None and name != None:
+        parent[name] = component
+    return component
+
+
+#---- TEST AREA
+from logger import printHeader
+from random import randint
+
+
+def testDictKey(header=True):
+    if header:
+        printHeader("Tests for the DictKey object")
     sampleKey = 'qwerty'
     dictKey = DictKey(sampleKey)
-    print("Compare the key and it's reduced versions")
+    if output:
+        print("Compare the key and it's reduced versions")
     while dictKey == sampleKey:
-        print("\t%s == %s"%(dictKey,sampleKey))
+        if output:
+            print("\t%s == %s"%(dictKey,sampleKey))
         sampleKey = sampleKey[:-1]
-    print("\tFinally %s != %s"%(dictKey,sampleKey))
+    if output:
+        print("\tFinally %s != %s"%(dictKey,sampleKey))
+    return dictKey
 
 
-def testComponent():
+def testComponent(output=True):
     #TODO: test channel like Components
-    printHeader("Tests for the Component dictionary")
-    
-    scpitree = Component()
-    print("Build a root component: %s"%(scpitree))
-    scpitree['rootnode'] = Component(scpitree)
-    scpitree['rootnode']['nesteda'] = Attribute('leafa')
-    print("Assign a nested component:%s"%(scpitree))
-    scpitree['rootnode']['nestedb'] = Attribute('leafb')
-    print("Assign another nested component:%s"%(scpitree))
-    scpitree['rootnode']['nestedc'] = Component(scpitree['rootnode'])
-    scpitree['rootnode']['nestedc']['subnestedc'] = Attribute('leafc')
-    print("Assign a double nested component:%s"%(scpitree))
+    if output:
+        printHeader("Tests for the Component dictionary")
+    scpitree = BuildComponent()
+    if output:
+        print("Build a root component: %s"%(scpitree))
+    rootNode = BuildComponent('rootnode',scpitree)
+    nestedA = BuildComponent('nesteda',rootNode)
+    leafA = BuildAttribute('leafa',nestedA)
+    if output:
+        print("Assign a nested component:%s"%(scpitree))
+    nestedB = BuildComponent('nestedb',rootNode)
+    leafB = BuildAttribute('leafb',nestedB)
+    if output:
+        print("Assign another nested component:%s"%(scpitree))
+    nestedC = BuildComponent('nestedc',rootNode)
+    subnestedC = BuildComponent('subnestedc',nestedC)
+    leafC = BuildAttribute('leafc',subnestedC)
+    if output:
+        print("Assign a double nested component:%s"%(scpitree))
+    return scpitree
 
 
-from random import randint
 class AttrTest:
     def __init__(self,upperLimit=100,lowerLimit=-100):
         self._upperLimit = upperLimit
         self._lowerLimit = lowerLimit
     def readTest():
         return randint(self._lowerLimit,self._upperLimit)
-    @property
-    def upperLimit(self):
-        return self._upperLimit
-    @upperLimit.setter
-    def upperLimit(self,value):
-        self._upperLimit = value
-    @property
-    def lowerLimit(self):
-        return self._lowerLimit
-    @upperLimit.setter
-    def lowerLimit(self,value):
-        self._lowerLimit = value
+    def upperLimit(self,value=None):
+        if value == None:
+            return self._upperLimit
+        self._upperLimit = float(value)
+    def lowerLimit(self,value=None):
+        if value == None:
+            return self._lowerLimit
+        self._lowerLimit = float(value)
 
 
-def testAttr():
-    pass
-#    printHeader("Testing read/write operations")
-#    
-#    scpitree = Component()
-#    voltage = AttrTest()
-#    #current = AttrTest()
-#    scpitree['source'] = Component()
-#    scpitree['source']['Voltage'] = Component()
-#    #scpitree['source']['voltage'].default()
-#    scpitree['source']['voltage'] = Attribute('upper',
-#                                             read_callback=voltage.upperLimit,
-#                                             write_callback=voltage.upperLimit)
-#    scpitree['source']['voltage'] = Attribute('lower',
-#                                             read_callback=voltage.lowerLimit,
-#                                             write_callback=voltage.lowerLimit)
-#    print("%r"%component)
+def testAttr(output=True):
+    #TODO: default attribute for a component
+    if output:
+        printHeader("Testing read/write operations")
+    scpitree = BuildComponent()
+    voltageObj = AttrTest()
+    currentObj = AttrTest()
+    source = BuildComponent('source',scpitree)
+    voltageComp = BuildComponent('voltage',source)
+    UpperVoltage = BuildAttribute('upper',voltageComp,
+                                  readcb=voltageObj.upperLimit,
+                                  writecb=voltageObj.upperLimit)
+    LowerVoltage = BuildAttribute('lower',voltageComp,
+                                  readcb=voltageObj.lowerLimit,
+                                  writecb=voltageObj.lowerLimit)
+    currentComp = BuildComponent('current',source)
+    UpperCurrent = BuildAttribute('upper',currentComp,
+                                  readcb=currentObj.upperLimit,
+                                  writecb=currentObj.upperLimit)
+    LowerCurrent = BuildAttribute('lower',currentComp,
+                                  readcb=currentObj.lowerLimit,
+                                  writecb=currentObj.lowerLimit)
+    if output:
+        print("%r"%scpitree)
+    return scpitree
 
 
 def main():
+    import traceback
     for test in [testDictKey,testComponent,testAttr]:
         try:
             test()
         except Exception,e:
             print("Test failed! %s"%e)
+            traceback.print_exc()
             return
 
 

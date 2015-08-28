@@ -48,15 +48,16 @@ class TcpListener(_Logger):
                  maxlisteners=_MAX_CLIENTS,ipv6=True,debug=False):
         #Not in the header of the file due to cross imports
         from scpi import scpi as _scpi
-        _Logger.__init__(self,debug)
+        _Logger.__init__(self,parent,debug)
         if local:
             self._host_ipv4 = '127.0.0.1'#_socket.gethostname()
             self._host_ipv6 = '::1'#_socket.gethostname()
         else:
             self._host = ''
         self._name = name or "TcpListener"
-        if type(parent) != _scpi:
-            raise TypeError("Parent shall be a scpi object!")
+        if isinstance(parent, _scpi):
+            raise TypeError("Parent shall be a scpi object! (it's %s)"
+                            %type(parent))
         self._parent = parent
         self._port = port
         self._maxlisteners = maxlisteners
@@ -69,51 +70,63 @@ class TcpListener(_Logger):
         self._joinEvent.clear()
         self._listener_ipv4 = _threading.Thread(name="Listener4",
                                                 target=self.__listener,
-                                                args=(self._scpi_ipv4,))
+                                                args=(self._scpi_ipv4,
+                                                      self._host_ipv4,))
         if ipv6:
             self._listener_ipv6 = _threading.Thread(name="Listener6",
                                                     target=self.__listener,
-                                                    args=(self._scpi_ipv6,))
+                                                    args=(self._scpi_ipv6,
+                                                          self._host_ipv6,))
         self._connectionThreads = {}
         self._debug("Listener thread prepared")
     
     def __del__(self):
-        self._debug("Deleting TcpListener")
-        self._joinEvent.set()
-        
+        self.close()
 
     @property
     def port(self):
         return self._port
 
     def listen(self):
-        self._scpi_ipv4.bind((self._host_ipv4, self._port))
-        self._scpi_ipv4.listen(self._maxlisteners)
-        if hasattr(self,'_scpi_ipv6'):
-            self._scpi_ipv6.bind((self._host_ipv6, self._port))
-            self._scpi_ipv6.listen(self._maxlisteners)
         self._debug("Launching listener thread")
         self._listener_ipv4.start()
         if hasattr(self,'_scpi_ipv6'):
             self._listener_ipv6.start()
 
-    def __listener(self,scpisocket):
+    def close(self):
+        if hasattr(self,'_joinEvent'):
+            self._info("Deleting TcpListener")
+            self._joinEvent.set()
+        self._scpi_ipv4.shutdown(_socket.SHUT_RDWR)
+        if hasattr(self,'_scpi_ipv6'):
+            self._scpi_ipv6.shutdown(_socket.SHUT_RDWR)
+
+    def __listener(self,scpisocket,scpihost):
+        scpisocket.bind((scpihost, self._port))
+        scpisocket.listen(self._maxlisteners)
         self._debug("Listener thread up and running")
         while not self._joinEvent.isSet():
-            connection, address = scpisocket.accept()
-            connectionName = '%s:%s'%(address[0],address[1])
-            self._debug('Connection request from %s'%(connectionName))
-            if self._connectionThreads.has_key(connectionName) and \
-            self._connectionThreads[connectionName].isAlive():
-                self.error("New connection from %s when it has already one."\
-                           "refusing the newer."%(connectionName))
+            try:
+                connection, address = scpisocket.accept()
+            except Exception,e:
+                if self._joinEvent.isSet():
+                    self._info("Closing Listener")
+                    return
+                self._error("Socket Accept Exception: %s"%e)
             else:
-                self._connectionThreads[connectionName] = \
-                _threading.Thread(name=connectionName,
-                                  target=self.__connection,
-                                  args=(address,connection))
-                self._debug("Connection for %s created"%(connectionName))
-                self._connectionThreads[connectionName].start()
+                connectionName = '%s:%s'%(address[0],address[1])
+                self._debug('Connection request from %s'%(connectionName))
+                if self._connectionThreads.has_key(connectionName) and \
+                self._connectionThreads[connectionName].isAlive():
+                    self.error("New connection from %s when it has already one."\
+                               "refusing the newer."%(connectionName))
+                else:
+                    self._connectionThreads[connectionName] = \
+                    _threading.Thread(name=connectionName,
+                                      target=self.__connection,
+                                      args=(address,connection))
+                    self._debug("Connection for %s created"%(connectionName))
+                    self._connectionThreads[connectionName].start()
         scpisocket.close()
         self._debug("Listener thread finishing")
 
@@ -126,5 +139,6 @@ class TcpListener(_Logger):
                 self.warning("No data received, termination the connection")
                 connection.close()
                 return
-            self._parent.input(data)
+            ans = self._parent.input(data)
             self._debug("skippy.input say %d"%(res))
+            connection.send(ans)

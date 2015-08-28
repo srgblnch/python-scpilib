@@ -1,5 +1,5 @@
 ###############################################################################
-## file :               scpi.pyx
+## file :               scpi.py
 ##
 ## description :        Python module to provide scpi functionality to an 
 ##                      instrument.
@@ -38,7 +38,11 @@ from logger import Logger as _Logger
 #include "tcpListener.py"
 from tcpListener import TcpListener
 #include "version.py"
+from version import version as _version
 
+#flags for service activation
+TCPLISTENER_LOCAL  = 0b00000001
+TCPLISTENER_REMOTE = 0b00000010
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d' 
@@ -46,21 +50,116 @@ def __version__():
        (scpi-parser), the third is the build of this cypthon port and the last 
        one is a revision number.
     '''
-    return version.version()
+    return _version()
 
 class scpi(_Logger):
     #TODO: build commands
     #TODO: tcpListener
     #TODO: other incomming channels
-    pass
+    def __init__(self,commandTree,services,debug=False):
+        _Logger.__init__(self,debug=debug)
+        self._name = "scpi"
+        self._commandTree = commandTree
+        self._info("Given commands: %s"%(self._commandTree))
+        self._services = {}
+        if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
+            local = services & TCPLISTENER_LOCAL
+            self._debug("Opening tcp listener (%s)"
+                        %("local" if local else "remote"))
+            self._services['tcpListener'] = TcpListener(name="TcpListener",
+                                                        parent=self,
+                                                        local=local,
+                                                        debug=debug)
+            self._services['tcpListener'].listen()
+
+    def __del__(self):
+        self._info("deleting")
+        for key,service in self._services.items():
+            if hasattr(service,'close'):
+                service.close()
+            else:
+                del service
+                
+    def input(self,line):
+        self._debug("Received '%s' input"%(line))
+        line = line.split(';')
+        results = []
+        for i,command in enumerate(line):
+            if command.startswith('*'):
+                results.append(self._process_special_command(command))
+            else:
+                if command.startswith(':'):
+                    if i == 0:
+                        self._error("For command '%s': Not possible to start "\
+                                    "with ':', without previous command"
+                                    %(command))
+                        results.append(float('NaN'))
+                    else:
+                        #TODO: populate fields pre-':' 
+                        #with the previous (i-1) command
+                        results.append(float('NaN'))
+                else:
+                    results.append(self._process_normal_command(command))
+        self._debug("Answers: %s"%(results))
+        answer = ""
+        for res in results:
+            answer = "".join("%s%s;"%(answer,res))
+        self._debug("Answer: %s"%(answer))
+        return answer
+    
+    def _process_special_command(self,cmd):
+        self._error("This is an special command, not yet supported")
+        return float('NaN')
+    def _process_normal_command(self,cmd):
+        keywords = cmd.split(':')
+        tree = self._commandTree
+        for key in keywords:
+            self._debug("processing %s"%key)
+            try:
+                tree = tree[key]
+            except:
+                if key.endswith('?'):
+                    return tree[key[:-1]].read()
+                else:
+                    bar = key.split(' ')
+                    #if there is more than one space in the middle, 
+                    #take first and last
+                    key = bar[0];value = bar[-1]
+                    tree[key].write(value)
+                    return tree[key].read()
+
+
+#---- TEST AREA
+from logger import printHeader
+
+
+def testScpi():
+    from commands import testAttr
+    printHeader("Testing scpi main class")
+    commandSet = testAttr(output=False)
+    scpiObj = scpi(commandSet,TCPLISTENER_LOCAL,debug=False)
+    print("Requested upper current limit: %s"
+          %(scpiObj.input("SOUR:CURR:UPPER?")))
+    print("Requested lower current limit: %s"
+          %(scpiObj.input("SOUR:CURR:LOWER?")))
+    print("Set the current lower limit to -50, and the answer is: %s"
+          %(scpiObj.input("SOUR:CURR:LOWER -50")))
+    print("Request again the current lower limit: %s"
+          %(scpiObj.input("SOUR:CURR:LOWER?")))
+    print("Request lower voltage limit: %s"
+          %(scpiObj.input("SOUR:VOLT:LOWER?")))
+    #end
+    scpiObj.__del__()
+
 
 def main():
-    from commands import main as commandsTest
-    for test in [commandsTest]:
+    import traceback
+    for test in [testScpi]:
         try:
             test()
         except Exception,e:
             print("Test failed! %s"%e)
+            traceback.print_exc()
             return
 
 
