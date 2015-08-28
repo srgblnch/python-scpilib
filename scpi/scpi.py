@@ -119,14 +119,21 @@ class scpi(_Logger):
                 tree = tree[key]
             except:
                 if key.endswith('?'):
-                    return tree[key[:-1]].read()
+                    self._debug("last keyword: %s"%(key))
+                    try:
+                        return tree[key[:-1]].read()
+                    except:
+                        return float('NaN')
                 else:
-                    bar = key.split(' ')
-                    #if there is more than one space in the middle, 
-                    #take first and last
-                    key = bar[0];value = bar[-1]
-                    tree[key].write(value)
-                    return tree[key].read()
+                    try:
+                        bar = key.split(' ')
+                        #if there is more than one space in the middle, 
+                        #take first and last
+                        key = bar[0];value = bar[-1]
+                        tree[key].write(value)
+                        return tree[key].read()
+                    except:
+                        return float('NaN')
 
 
 #---- TEST AREA
@@ -148,6 +155,8 @@ def testScpi():
           %(scpiObj.input("SOUR:CURR:LOWER?")))
     print("Request lower voltage limit: %s"
           %(scpiObj.input("SOUR:VOLT:LOWER?")))
+    print("Request voltage value: %s"%(scpiObj.input("SOUR:VOLT:VALU?")))
+    print("Request voltage using default: %s"%(scpiObj.input("SOUR:VOLT?")))
     #end
     scpiObj.__del__()
 

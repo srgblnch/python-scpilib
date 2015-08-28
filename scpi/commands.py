@@ -163,20 +163,22 @@ class Attribute(DictKey):
         self._write_cb(value)
 
 
-def BuildAttribute(name,parent,readcb=None,writecb=None):
+def BuildAttribute(name,parent,readcb=None,writecb=None,default=False):
     attr = Attribute(name)
     attr.parent = parent
     if parent != None:
         parent[name] = attr
     attr.read_cb = readcb
     attr.write_cb = writecb
+    if default:
+        parent.default = name
     return attr
 
 
 #TODO: DictKeys that ends with numbers (that represents something like channels
 #      shall not include the number in the name and shoud search for 
 #      correspondence.
-#TODO: default attribute for a component
+
 
 class Component(_Logger,dict):
     '''
@@ -188,6 +190,7 @@ class Component(_Logger,dict):
         dict.__init__(self,args,**kargs)
         self._name = name
         self._parent = None
+        self._defaultKey = None
     
     def __repr__(self):
         indentation = "\t"*self.depth
@@ -243,6 +246,25 @@ class Component(_Logger,dict):
                    %(str(dict.get(self,'name_label')),key,str(val)))
         dict.__setitem__(self,key,val)
         val.parent = self
+
+    @property
+    def default(self):
+        return self._defaultKey
+    
+    @default.setter
+    def default(self,value):
+        if value in self.keys():
+            self._defaultKey = value
+
+    def read(self):
+        if self._defaultKey:
+            return self.__getitem__(self._defaultKey).read()
+        return float('NaN')
+    
+    def write(self,value):
+        if self._defaultKey:
+            return self.__getitem__(self._defaultKey).write(value)
+        return float('NaN')
 
 
 def BuildComponent(name=None,parent=None):
@@ -302,7 +324,7 @@ class AttrTest:
     def __init__(self,upperLimit=100,lowerLimit=-100):
         self._upperLimit = upperLimit
         self._lowerLimit = lowerLimit
-    def readTest():
+    def readTest(self):
         return randint(self._lowerLimit,self._upperLimit)
     def upperLimit(self,value=None):
         if value == None:
@@ -315,7 +337,6 @@ class AttrTest:
 
 
 def testAttr(output=True):
-    #TODO: default attribute for a component
     if output:
         printHeader("Testing read/write operations")
     scpitree = BuildComponent()
@@ -329,6 +350,9 @@ def testAttr(output=True):
     LowerVoltage = BuildAttribute('lower',voltageComp,
                                   readcb=voltageObj.lowerLimit,
                                   writecb=voltageObj.lowerLimit)
+    ReadVoltage = BuildAttribute('value',voltageComp,
+                                  readcb=voltageObj.readTest,
+                                  default=True)
     currentComp = BuildComponent('current',source)
     UpperCurrent = BuildAttribute('upper',currentComp,
                                   readcb=currentObj.upperLimit,
@@ -336,6 +360,9 @@ def testAttr(output=True):
     LowerCurrent = BuildAttribute('lower',currentComp,
                                   readcb=currentObj.lowerLimit,
                                   writecb=currentObj.lowerLimit)
+    ReadCurrent = BuildAttribute('value',currentComp,
+                                  readcb=currentObj.readTest,
+                                  default=True)
     if output:
         print("%r"%scpitree)
     return scpitree
