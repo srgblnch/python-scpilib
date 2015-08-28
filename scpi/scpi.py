@@ -41,8 +41,8 @@ from tcpListener import TcpListener
 from version import version as _version
 
 #flags for service activation
-TCPLISTENER_LOCAL  = 0b00000001
-TCPLISTENER_REMOTE = 0b00000010
+TCPLISTENER_LOCAL  = 0b10000000
+TCPLISTENER_REMOTE = 0b01000000
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d' 
@@ -56,10 +56,22 @@ class scpi(_Logger):
     #TODO: build commands
     #TODO: tcpListener
     #TODO: other incomming channels
-    def __init__(self,commandTree,services,debug=False):
+    def __init__(self,commandTree,services,idn=None,debug=False):
         _Logger.__init__(self,debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree
+        self._manufacturerName = None
+        self._instrumentName = None
+        self._serialNumber = None
+        self._firmwareVersion = None
+        if idn:
+            if type(idn) == list and len(idn) == 4:
+                self.manufacturer = idn[0]
+                self.instrument = idn[1]
+                self.serialNumber = idn[2]
+                self.firmwareVersion = idn[3]
+            else:
+                self._error("Wrongly configured the IDN!")
         self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
         if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
@@ -73,7 +85,7 @@ class scpi(_Logger):
             self._services['tcpListener'].listen()
 
     def __del__(self):
-        self._info("deleting")
+        self._info("Delete request received")
         for key,service in self._services.items():
             if hasattr(service,'close'):
                 service.close()
@@ -86,7 +98,7 @@ class scpi(_Logger):
         results = []
         for i,command in enumerate(line):
             if command.startswith('*'):
-                results.append(self._process_special_command(command))
+                results.append(self._process_special_command(command[1:]))
             else:
                 if command.startswith(':'):
                     if i == 0:
@@ -95,9 +107,12 @@ class scpi(_Logger):
                                     %(command))
                         results.append(float('NaN'))
                     else:
-                        #TODO: populate fields pre-':' 
+                        #populate fields pre-':' 
                         #with the previous (i-1) command
-                        results.append(float('NaN'))
+                        command = \
+                        "".join("%s%s"%(line[i-1].rsplit(':')[0],command))
+                        results.append(self._process_normal_command(command))
+                        #results.append(float('NaN'))
                 else:
                     results.append(self._process_normal_command(command))
         self._debug("Answers: %s"%(results))
@@ -108,7 +123,11 @@ class scpi(_Logger):
         return answer
     
     def _process_special_command(self,cmd):
-        self._error("This is an special command, not yet supported")
+        if cmd.endswith('?'):
+            if cmd.lower() == "idn?":
+                return self.idn
+        #TODO
+        self._error("This is an special command, but it's not yet supported")
         return float('NaN')
     def _process_normal_command(self,cmd):
         keywords = cmd.split(':')
@@ -135,6 +154,47 @@ class scpi(_Logger):
                     except:
                         return float('NaN')
 
+    @property
+    def manufacturer(self):
+        return self._manufacturerName
+    
+    @manufacturer.setter
+    def manufacturer(self,value):
+        self._manufacturerName = str(value)
+        print("IDN: %s"%(self.idn))
+    
+    @property
+    def instrument(self):
+        return self._instrumentName
+    
+    @instrument.setter
+    def instrument(self,value):
+        self._instrumentName = str(value)
+        print("IDN: %s"%(self.idn))
+    
+    @property
+    def serialNumber(self):
+        return self._serialNumber
+    
+    @serialNumber.setter
+    def serialNumber(self,value):
+        self._serialNumber = str(value)
+        print("IDN: %s"%(self.idn))
+    
+    @property
+    def firmwareVersion(self):
+        return self._firmwareVersion
+    
+    @firmwareVersion.setter
+    def firmwareVersion(self,value):
+        self._firmwareVersion = str(value)
+        print("IDN: %s"%(self.idn))
+    
+    @property
+    def idn(self):
+        return "%s,%s,%s,%s"%(self.manufacturer,self.instrument,
+                              self.serialNumber,self.firmwareVersion)
+
 
 #---- TEST AREA
 from logger import printHeader
@@ -144,7 +204,11 @@ def testScpi():
     from commands import testAttr
     printHeader("Testing scpi main class (version %s)"%(_version()))
     commandSet = testAttr(output=False)
-    scpiObj = scpi(commandSet,TCPLISTENER_LOCAL,debug=False)
+    idn = ["ALBA","test",0,'0.0']
+    scpiObj = scpi(commandSet,TCPLISTENER_LOCAL,idn=idn,debug=False)
+    cmd = "*IDN?"
+    print("Instrument identification (%s): %s"
+          %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:UPPER?"
     print("Requested upper current limit (%s): %s"
           %(cmd,scpiObj.input(cmd)))
@@ -170,6 +234,8 @@ def testScpi():
     print("Request voltage using default (%s): %s"%(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;SOUR:VOLT?"
     print("Concatenate 2 commands (%s): %s"%(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR?;:VOLT?"
+    print("Concatenate and nested commands (%s): %s"%(cmd,scpiObj.input(cmd)))
     #end
     scpiObj.__del__()
 
