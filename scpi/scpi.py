@@ -62,7 +62,7 @@ class scpi(_Logger):
         _Logger.__init__(self,debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
-        self._specialCmds = specialCommands
+        self._specialCmds = specialCommands or {}
         self._info("Special commands: %r"%(specialCommands))
         self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
@@ -84,11 +84,29 @@ class scpi(_Logger):
             else:
                 del service
 
+    def __str__(self):
+        return "%r"%(self)
+    
+    def __repr__(self):
+        if self._specialCmds.has_key('idn'):
+            return "scpi(%s)"%(self._specialCmds['idn'].read())
+        return "scpi()"
+
     def addSpecialCommand(self,name,readcb,writecb=None):
         '''
             Adds a command '*%s'%(name). If finishes with a '?' mark it will 
             be called the readcb method, else will be the writecb method.
         '''
+        name = name.lower()
+        if name.startswith('*'):
+            name = name[1:]
+        if name.endswith('?'):
+            if writecb != None:
+                raise KeyError("Refusing command %s: looks readonly but has "\
+                               "a query character at the end."%(name))
+            name = name[:-1]
+        if not name.isalpha():
+            raise NameError("Not supported other than alphabetical characters")
         if self._specialCmds == None:
             self._specialCmds = {}
         self._debug("Adding special command '*%s'"%(name))
@@ -113,6 +131,9 @@ class scpi(_Logger):
             called with a '?' at the end. Or writecb if it's followed by an 
             space and something that can be casted after.
         '''
+        if FullName.startswith('*'):
+            self.addSpecialCommand(FullName, readcb, writecb)
+            return
         nameParts = FullName.split(':')
         self._debug("Prepare to add command %s"%(FullName))
         tree = self._commandTree
@@ -131,23 +152,24 @@ class scpi(_Logger):
         line = line.split(';')
         results = []
         for i,command in enumerate(line):
+            self._debug("Processing command: '%s'"%(command))
             if command.startswith('*'):
                 results.append(self._process_special_command(command[1:]))
-            else:
-                if command.startswith(':'):
-                    if i == 0:
-                        self._error("For command '%s': Not possible to start "\
-                                    "with ':', without previous command"
-                                    %(command))
-                        results.append(float('NaN'))
-                    else:
-                        #populate fields pre-':' 
-                        #with the previous (i-1) command
-                        command = \
-                        "".join("%s%s"%(line[i-1].rsplit(':')[0],command))
-                        results.append(self._process_normal_command(command))
+            elif command.startswith(':'):
+                if i == 0:
+                    self._error("For command '%s': Not possible to start "\
+                                "with ':', without previous command"
+                                %(command))
+                    results.append(float('NaN'))
                 else:
+                    #populate fields pre-':' 
+                    #with the previous (i-1) command
+                    command = \
+                    "".join("%s%s"%(line[i-1].rsplit(':',1)[0],command))
+                    self._debug("Command expanded to '%s'"%(command))
                     results.append(self._process_normal_command(command))
+            else:
+                results.append(self._process_normal_command(command))
         self._debug("Answers: %s"%(results))
         answer = ""
         for res in results:
@@ -159,6 +181,8 @@ class scpi(_Logger):
     def _process_special_command(self,cmd):
         #FIXME: ugly
         self._debug("current special keys: %s"%(self._specialCmds.keys()))
+        if cmd.count(':') > 0:
+            return float('NaN')
         for key in self._specialCmds.keys():
             self._debug("testing key %s ?= %s"%(key,cmd))
             if cmd.lower().startswith(key):
@@ -323,6 +347,8 @@ def testScpi():
     cmd = "SOUR:CURR?;SOUR:VOLT?"
     print("\tConcatenate 2 commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;:VOLT?"
+    print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
+    cmd = "SOUR:CURR:LOWE?;:UPPE?"
     print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     #end
     scpiObj.__del__()
