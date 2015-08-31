@@ -57,10 +57,39 @@ With this sample code, out object shall be listening on the (loopback) network
 and sending the string 'SOUR:CURR:UPPE?', we will receive back an string with 
 the representation of the execution of 'currentObj.upperLimit()'.
 
+### Special commands
+
+There is a set of minimum commands that shall be implemented in any device that
+like to be scpi compiant. Those commands are tagged starting with '*' symbol.
+
+#### Identify yourself
+
+The most important of them is the identification: '*IDN?'. As it finishes with 
+a '?' symbol, it means a request to the instrument. The answer is a string 
+with 4 elements coma separated:
+* Manufacturer: identical for all the instruments of a single company
+* Instrument: Common for all the instrument in the same class, but It shall 
+never contain the word 'MODEL'.
+* Serial Number: specific for the responding instrument to the request.
+* Version (and revision) of the software embedded in the instrument.
+
+To build this command, one should have an function that returns the string 
+that will be sent back. For example, in the code there is a class 
+InstrumentIdentification() where the 4 fields can be set and there is one 
+method that returns the string. Then, to a scpi object one can add it:
+
+```
+scpiObj.addSpecialCommand('IDN',identity.idn)
+```
+
+With this one have the most very basic functional scpi listener.
+
 ## ToDo List
 
 * Components with indexes: channel like components with a numeric tag to 
 distinguish between more than one 'signal' source.
+
+* Enumerate types to the command setters.
 
 * More listen channels than network
 
