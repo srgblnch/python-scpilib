@@ -32,7 +32,7 @@
 
 
 #include "commands.py"
-from commands import DictKey,Component,Attribute
+from commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
 #include "logger.py"
 from logger import Logger as _Logger
 #include "tcpListener.py"
@@ -40,9 +40,11 @@ from tcpListener import TcpListener
 #include "version.py"
 from version import version as _version
 
+
 #flags for service activation
 TCPLISTENER_LOCAL  = 0b10000000
 TCPLISTENER_REMOTE = 0b01000000
+
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d' 
@@ -53,25 +55,15 @@ def __version__():
     return _version()
 
 class scpi(_Logger):
-    #TODO: build commands
-    #TODO: tcpListener
-    #TODO: other incomming channels
-    def __init__(self,commandTree,services,idn=None,debug=False):
+    #TODO: other incomming channels than network
+    #TODO: %s %r of the object
+    def __init__(self,services=TCPLISTENER_LOCAL,commandTree=None,
+                 specialCommands=None,debug=False):
         _Logger.__init__(self,debug=debug)
         self._name = "scpi"
-        self._commandTree = commandTree
-        self._manufacturerName = None
-        self._instrumentName = None
-        self._serialNumber = None
-        self._firmwareVersion = None
-        if idn:
-            if type(idn) == list and len(idn) == 4:
-                self.manufacturer = idn[0]
-                self.instrument = idn[1]
-                self.serialNumber = idn[2]
-                self.firmwareVersion = idn[3]
-            else:
-                self._error("Wrongly configured the IDN!")
+        self._commandTree = commandTree or Component()
+        self._specialCmds = specialCommands
+        self._info("Special commands: %r"%(specialCommands))
         self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
         if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
@@ -91,7 +83,51 @@ class scpi(_Logger):
                 service.close()
             else:
                 del service
-                
+
+    def addSpecialCommand(self,name,readcb,writecb=None):
+        '''
+            Adds a command '*%s'%(name). If finishes with a '?' mark it will 
+            be called the readcb method, else will be the writecb method.
+        '''
+        if self._specialCmds == None:
+            self._specialCmds = {}
+        self._debug("Adding special command '*%s'"%(name))
+        BuildSpecialCmd(name,self._specialCmds,readcb,writecb)
+
+    def addComponent(self,name,parent=None):
+        if name in parent.keys():
+            self._debug("component '%s' already exist"%(name))
+            return
+        self._debug("Adding component '%s' (%s)"%(name,parent))
+        BuildComponent(name,parent)
+    
+    def addAttribute(self,name,parent,readcb,writecb=None,default=False):
+        self._debug("Adding attribute '%s' (%s)"%(name,parent))
+        BuildAttribute(name,parent,readcb,writecb,default)
+
+    def addCommand(self,FullName,readcb,writecb=None,default=False):
+        '''
+            adds the command in the structure of [X:Y:]Z composed by Components
+            X, Y and as many as ':' separated have. The last one will 
+            correspond with an Attribute with at least a readcb for when it's 
+            called with a '?' at the end. Or writecb if it's followed by an 
+            space and something that can be casted after.
+        '''
+        nameParts = FullName.split(':')
+        self._debug("Prepare to add command %s"%(FullName))
+        tree = self._commandTree
+        #preprocessing:
+        for part in nameParts:
+            if len(part) == 0:
+                raise NameError("No null names allowed")
+        if len(nameParts) > 1:
+            for i,part in enumerate(nameParts[:-1]):
+                self.addComponent(part,tree)
+                tree = tree[part]
+        self.addAttribute(nameParts[-1],tree,readcb,writecb,default)
+
+    #TODO: set up default responces
+
     def input(self,line):
         self._debug("Received '%s' input"%(line))
         line = line.split(';')
@@ -112,7 +148,6 @@ class scpi(_Logger):
                         command = \
                         "".join("%s%s"%(line[i-1].rsplit(':')[0],command))
                         results.append(self._process_normal_command(command))
-                        #results.append(float('NaN'))
                 else:
                     results.append(self._process_normal_command(command))
         self._debug("Answers: %s"%(results))
@@ -120,15 +155,26 @@ class scpi(_Logger):
         for res in results:
             answer = "".join("%s%s;"%(answer,res))
         self._debug("Answer: %s"%(answer))
-        return answer
+        #FIXME: has the last character to be ';'?
+        return answer[:-1]
     
     def _process_special_command(self,cmd):
-        if cmd.endswith('?'):
-            if cmd.lower() == "idn?":
-                return self.idn
-        #TODO
-        self._error("This is an special command, but it's not yet supported")
+        #FIXME: ugly
+        self._debug("current special keys: %s"%(self._specialCmds.keys()))
+        for key in self._specialCmds.keys():
+            self._debug("testing key %s ?= %s"%(key,cmd))
+            if cmd.lower().startswith(key):
+                if cmd.endswith('?'):
+                    return self._specialCmds[key].read()
+                else:
+                    if cmd.count(' ')>0:
+                        bar = cmd.split(' ')
+                        name = bar[0],value = bar[-1]
+                        return self._specialCmds[name].write(value)
+                    else:
+                        return self._specialCmds[key].write()
         return float('NaN')
+    
     def _process_normal_command(self,cmd):
         keywords = cmd.split(':')
         tree = self._commandTree
@@ -141,6 +187,10 @@ class scpi(_Logger):
                     self._debug("last keyword: %s"%(key))
                     try:
                         return tree[key[:-1]].read()
+                        #TODO: support list readings and its conversion to
+                        #      '#NMMMMMMMMM...' stream
+                        #This may require a DataFormat feature to pack the 
+                        #data in bytes, shorts or longs.
                     except:
                         return float('NaN')
                 else:
@@ -154,6 +204,19 @@ class scpi(_Logger):
                     except:
                         return float('NaN')
 
+
+#---- TEST AREA
+from logger import printHeader
+
+
+class InstrumentIdentification(object):
+    def __init__(self,manufacturer,instrument,serialNumber,firmwareVersion):
+        object.__init__(self)
+        self.manufacturer = manufacturer
+        self.instrument = instrument
+        self.serialNumber = serialNumber
+        self.firmwareVersion = firmwareVersion
+        
     @property
     def manufacturer(self):
         return self._manufacturerName
@@ -161,7 +224,6 @@ class scpi(_Logger):
     @manufacturer.setter
     def manufacturer(self,value):
         self._manufacturerName = str(value)
-        print("IDN: %s"%(self.idn))
     
     @property
     def instrument(self):
@@ -170,7 +232,6 @@ class scpi(_Logger):
     @instrument.setter
     def instrument(self,value):
         self._instrumentName = str(value)
-        print("IDN: %s"%(self.idn))
     
     @property
     def serialNumber(self):
@@ -179,7 +240,6 @@ class scpi(_Logger):
     @serialNumber.setter
     def serialNumber(self,value):
         self._serialNumber = str(value)
-        print("IDN: %s"%(self.idn))
     
     @property
     def firmwareVersion(self):
@@ -188,54 +248,84 @@ class scpi(_Logger):
     @firmwareVersion.setter
     def firmwareVersion(self,value):
         self._firmwareVersion = str(value)
-        print("IDN: %s"%(self.idn))
     
-    @property
     def idn(self):
         return "%s,%s,%s,%s"%(self.manufacturer,self.instrument,
                               self.serialNumber,self.firmwareVersion)
 
 
-#---- TEST AREA
-from logger import printHeader
-
-
 def testScpi():
-    from commands import testAttr
+    from commands import AttrTest
     printHeader("Testing scpi main class (version %s)"%(_version()))
-    commandSet = testAttr(output=False)
-    idn = ["ALBA","test",0,'0.0']
-    scpiObj = scpi(commandSet,TCPLISTENER_LOCAL,idn=idn,debug=False)
+    
+    identity = InstrumentIdentification('ALBA','test',0,'0.0')
+    #BuildSpecial('IDN',specialSet,identity.idn)
+    scpiObj = scpi(TCPLISTENER_LOCAL,debug=True)
+    scpiObj.addSpecialCommand('IDN',identity.idn)
+    #invalid commands section
+    try:
+        scpiObj.addCommand(":startswithcolon",readcb=None)
+    except NameError,e:
+        print("\tNull name test passed")
+    except Exception,e:
+        print("\tUnexpected kind of exception!")
+        return
+    try:
+        scpiObj.addCommand("double::colons",readcb=None)
+    except NameError,e:
+        print("\tDouble colon name test passed")
+    except Exception,e:
+        print("\tUnexpected kind of exception!")
+        return
+    #valid commands section
+    currentObj = AttrTest()
+    scpiObj.addCommand('source:current:upper',readcb=currentObj.upperLimit,
+                       writecb=currentObj.upperLimit)
+    scpiObj.addCommand('source:current:lower',readcb=currentObj.lowerLimit,
+                       writecb=currentObj.lowerLimit)
+    scpiObj.addCommand('source:current:value',readcb=currentObj.readTest,
+                       default=True)
+    voltageObj = AttrTest()
+    scpiObj.addCommand('source:voltage:upper',readcb=voltageObj.upperLimit,
+                       writecb=voltageObj.upperLimit)
+    scpiObj.addCommand('source:voltage:lower',readcb=voltageObj.lowerLimit,
+                       writecb=voltageObj.lowerLimit)
+    scpiObj.addCommand('source:voltage:value',readcb=voltageObj.readTest,
+                       default=True)
+    print("Command tree build: %r"%(scpiObj._commandTree))
+    
+    
+    print("Launch test:")
     cmd = "*IDN?"
-    print("Instrument identification (%s): %s"
+    print("\tInstrument identification (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:UPPER?"
-    print("Requested upper current limit (%s): %s"
+    print("\tRequested upper current limit (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOU:CURRRI:UP?"
-    print("Requested something that cannot be requested (%s): %s"
+    print("\tRequested something that cannot be requested (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWER?"
-    print("Requested lower current limit (%s): %s"
+    print("\tRequested lower current limit (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWER -50"
-    print("Set the current lower limit to -50 (%s), and the answer is: %s"
+    print("\tSet the current lower limit to -50 (%s), and the answer is:\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWER?"
-    print("Request again the current lower limit (%s): %s"
+    print("\tRequest again the current lower limit (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:VOLT:LOWER?"
-    print("Request lower voltage limit (%s): %s"
+    print("\tRequest lower voltage limit (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:VOLT:VALU?"
-    print("Request voltage value (%s): %s"
+    print("\tRequest voltage value (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:VOLT?"
-    print("Request voltage using default (%s): %s"%(cmd,scpiObj.input(cmd)))
+    print("\tRequest voltage using default (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;SOUR:VOLT?"
-    print("Concatenate 2 commands (%s): %s"%(cmd,scpiObj.input(cmd)))
+    print("\tConcatenate 2 commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;:VOLT?"
-    print("Concatenate and nested commands (%s): %s"%(cmd,scpiObj.input(cmd)))
+    print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     #end
     scpiObj.__del__()
 

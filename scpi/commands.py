@@ -52,6 +52,8 @@ class DictKey(_Logger,str):
         #super(DictKey,self).__init__(value,minimum,*args,**kargs)
         _Logger.__init__(self,debug=debug)
         str.__init__(value)
+        if not value.isalpha():
+            raise NameError("key shall be strictly alphabetic")
         self._name = value
         self._minimum = minimum
         if len(self._name) < self._minimum:
@@ -155,8 +157,8 @@ class Attribute(DictKey):
         return self._read_cb
     
     @read_cb.setter
-    def read_cb(self,value):
-        self._read_cb = value
+    def read_cb(self,function):
+        self._read_cb = function
 
     def read(self):
         return self._read_cb()
@@ -166,8 +168,8 @@ class Attribute(DictKey):
         return self._write_cb
     
     @write_cb.setter
-    def write_cb(self,value):
-        self._write_cb = value
+    def write_cb(self,function):
+        self._write_cb = function
 
     def write(self,value):
         self._write_cb(value)
@@ -297,14 +299,83 @@ def BuildComponent(name=None,parent=None):
     return component
 
 
+class SpecialCommand(_Logger,object):
+    '''
+        Special commands that starts with '*' character. To be know, the 
+        mandatory commands that must have an instrument that provice scpi
+        communications are:
+        *IDN?: Identification query
+                four field response: 
+                "MANUFACTURER,INSTRUMENT,SERIALNUMBER,FIRMWARE_VERSION
+                    Manufacturer: identical for all the instruments of a 
+                                  single company
+                    Instrument: It shall never contain the word 'MODEL'.
+                    SN: specific for the responding instrument
+                    version (and revision): of the software embedded in the 
+                                            instrument.
+        *RST: Reset command
+        *CLS: Clear status command
+        *ESE[?]: Event Status Enable
+        *ESR?: Event Status Register query
+        *OPC[?]: Operation Complete
+        *SRE[?]: Service Request Enable
+        *STB?: Status Byte
+        *TST?: self-test query
+        *WAI: wait-to-continue command
+    '''
+    def __init__(self,name,debug=False,*args,**kargs):
+        _Logger.__init__(self,debug=debug,*args,**kargs)
+        object.__init__(self)
+        self._name = name
+        self._readcb = None
+        self._writecb = None
+        
+    @property
+    def readcb(self):
+        return self._readcb
+    
+    @readcb.setter
+    def readcb(self,function):
+        self._readcb = function
+        
+    def read(self):
+        if self._readcb != None:
+            return self._readcb()
+        return float("NaN")
+    
+    @property
+    def writecb(self):
+        return self._writecb
+    
+    @writecb.setter
+    def writecb(self,function):
+        self._writecb = function
+    
+    def write(self,value=None):
+        if self._writecb:
+            if value:
+                self._writecb(value)
+            else:
+                self._writecb()
+        return float("NaN")
+
+
+def BuildSpecialCmd(name,parent,readcb,writecb=None):
+    special = SpecialCommand(name)
+    special.readcb = readcb
+    special.writecb = writecb
+    parent[name.lower()] = special
+    return special
+
+
 #---- TEST AREA
 from logger import printHeader
 from random import randint
 
 
-def testDictKey(header=True):
-    if header:
-        printHeader("Tests for the DictKey object")
+def testDictKey(output=True):
+    if output:
+        printHeader("Tests for the DictKey object construction")
     sampleKey = 'qwerty'
     dictKey = DictKey(sampleKey)
     if output:
@@ -321,24 +392,24 @@ def testDictKey(header=True):
 def testComponent(output=True):
     #TODO: test channel like Components
     if output:
-        printHeader("Tests for the Component dictionary")
+        printHeader("Tests for the Component dictionary construction")
     scpitree = BuildComponent()
     if output:
-        print("Build a root component: %s"%(scpitree))
+        print("Build a root component: %r"%(scpitree))
     rootNode = BuildComponent('rootnode',scpitree)
     nestedA = BuildComponent('nesteda',rootNode)
     leafA = BuildAttribute('leafa',nestedA)
     if output:
-        print("Assign a nested component:%s"%(scpitree))
+        print("Assign a nested component:%r"%(scpitree))
     nestedB = BuildComponent('nestedb',rootNode)
     leafB = BuildAttribute('leafb',nestedB)
     if output:
-        print("Assign another nested component:%s"%(scpitree))
+        print("Assign another nested component:%r"%(scpitree))
     nestedC = BuildComponent('nestedc',rootNode)
     subnestedC = BuildComponent('subnestedc',nestedC)
     leafC = BuildAttribute('leafc',subnestedC)
     if output:
-        print("Assign a double nested component:%s"%(scpitree))
+        print("Assign a double nested component:%r"%(scpitree))
     return scpitree
 
 
@@ -360,7 +431,7 @@ class AttrTest:
 
 def testAttr(output=True):
     if output:
-        printHeader("Testing read/write operations")
+        printHeader("Testing read/write operations construction")
     scpitree = BuildComponent()
     voltageObj = AttrTest()
     currentObj = AttrTest()
@@ -390,9 +461,25 @@ def testAttr(output=True):
     return scpitree
 
 
+def idn():
+    return "ALBA,test,0,0.0"
+
+
+def testSpeciaCommands(output=True):
+    if output:
+        printHeader("Testing the special commands construction")
+    scpiSpecials = {}
+    idnCmd = BuildSpecialCmd("IDN",scpiSpecials,idn)
+    if output:
+        print("IDN answer: %s"%(scpiSpecials["IDN"].read()))
+#    if output:
+#        print("%r"%scpiSpecials)
+    return scpiSpecials
+
+
 def main():
     import traceback
-    for test in [testDictKey,testComponent,testAttr]:
+    for test in [testDictKey,testComponent,testAttr,testSpeciaCommands]:
         try:
             test()
         except Exception,e:
