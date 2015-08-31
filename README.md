@@ -56,3 +56,17 @@ in the current approach of tests. What the previous code generates are:
 With this sample code, out object shall be listening on the (loopback) network 
 and sending the string 'SOUR:CURR:UPPE?', we will receive back an string with 
 the representation of the execution of 'currentObj.upperLimit()'.
+
+## ToDo List
+
+* Components with indexes: channel like components with a numeric tag to 
+distinguish between more than one 'signal' source.
+
+* More listen channels than network
+
+* array-like answers
+
+## Other ideas to study
+
+* Event subscription. Unknow if scpi has something about this in the specs.
+

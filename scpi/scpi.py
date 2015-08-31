@@ -126,8 +126,6 @@ class scpi(_Logger):
                 tree = tree[part]
         self.addAttribute(nameParts[-1],tree,readcb,writecb,default)
 
-    #TODO: set up default responces
-
     def input(self,line):
         self._debug("Received '%s' input"%(line))
         line = line.split(';')
