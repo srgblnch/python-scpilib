@@ -17,7 +17,7 @@ to have a compiled option to increase performance with long sets of commands).
 
 ```
 $ python setup.py build
-$ python setup.py install --prefix ~
+$ python setup.py install --prefix $MYUSR
 ```
 
 The install has been set with a prefix to highlight the current development 
