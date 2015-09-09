@@ -28,7 +28,7 @@ stage and avoid to use in production unless you change it.
 Different aproaches has been prepared to have instrument side support. The 
 most simple shall be to simply build a scpi object in your instrument:
 
-```
+```python
 import scpi
 scpiObj = scpi.scpi()
 ```
@@ -39,7 +39,7 @@ made by network and *only* listen the localhost (in ipv4 and ipv6).
 Also, a object created this way doesn't have any command to respond. They can 
 be build before and passed to the constructor, or use a command to add:
 
-```
+```python
 currentObj = AttrTest()
 scpiObj.addCommand('source:current:upper',
                    readcb=currentObj.upperLimit,
@@ -78,7 +78,7 @@ that will be sent back. For example, in the code there is a class
 InstrumentIdentification() where the 4 fields can be set and there is one 
 method that returns the string. Then, to a scpi object one can add it:
 
-```
+```python
 scpiObj.addSpecialCommand('IDN',identity.idn)
 ```
 
