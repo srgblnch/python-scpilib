@@ -42,7 +42,7 @@ _logger_WARNING = 2
 _logger_INFO    = 3
 _logger_DEBUG   = 4
 
-class Logger:
+class Logger(object):
     '''This class is a very basic debugging flag mode used as a super class
        for the other classes in this library.
     '''
@@ -53,6 +53,7 @@ class Logger:
              _logger_DEBUG:  'DEBUG'}
 
     def __init__(self,parent=None,debug=False):
+        super(Logger,self).__init__()
         self._name = "Logger"
         self._parent = parent
         self._debugFlag = debug

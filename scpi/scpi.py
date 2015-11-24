@@ -55,7 +55,7 @@ class scpi(_Logger):
     #TODO: %s %r of the object
     def __init__(self,services=TCPLISTENER_LOCAL,commandTree=None,
                  specialCommands=None,debug=False):
-        _Logger.__init__(self,debug=debug)
+        super(scpi,self).__init__()#_Logger.__init__(self,debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
         self._specialCmds = specialCommands or {}
@@ -90,9 +90,6 @@ class scpi(_Logger):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
 
-    def type(self):
-        return "scpi"
-
     def addSpecialCommand(self,name,readcb,writecb=None):
         '''
             Adds a command '*%s'%(name). If finishes with a '?' mark it will 
@@ -112,6 +109,10 @@ class scpi(_Logger):
             self._specialCmds = {}
         self._debug("Adding special command '*%s'"%(name))
         BuildSpecialCmd(name,self._specialCmds,readcb,writecb)
+
+    @property
+    def specialCommands(self):
+        return self._specialCmds.keys()
 
     def addComponent(self,name,parent=None):
         if name in parent.keys():
@@ -147,6 +148,10 @@ class scpi(_Logger):
                 self.addComponent(part,tree)
                 tree = tree[part]
         self.addAttribute(nameParts[-1],tree,readcb,writecb,default)
+
+    @property
+    def commands(self):
+        return self._commandTree.keys()
 
     def input(self,line):
         self._debug("Received '%s' input"%(line))
