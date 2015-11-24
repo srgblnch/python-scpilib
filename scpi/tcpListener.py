@@ -55,7 +55,8 @@ class TcpListener(_Logger):
             self._host_ipv4 = '127.0.0.1'#_socket.gethostname()
             self._host_ipv6 = '::1'#_socket.gethostname()
         else:
-            self._host = ''
+            self._host_ipv4 = ''
+            self._host_ipv6 = ''
         self._name = name or "TcpListener"
         self._parent = _weakref(parent)
         self._port = port
