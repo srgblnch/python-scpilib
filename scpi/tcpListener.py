@@ -55,9 +55,6 @@ class TcpListener(_Logger):
         else:
             self._host = ''
         self._name = name or "TcpListener"
-        if isinstance(parent, _scpi):
-            raise TypeError("Parent shall be a scpi object! (it's %s)"
-                            %type(parent))
         self._parent = parent
         self._port = port
         self._maxlisteners = maxlisteners
@@ -94,12 +91,15 @@ class TcpListener(_Logger):
             self._listener_ipv6.start()
 
     def close(self):
+        self._info("%s close received"%self._name)
         if hasattr(self,'_joinEvent'):
             self._info("Deleting TcpListener")
             self._joinEvent.set()
         self._scpi_ipv4.shutdown(_socket.SHUT_RDWR)
+        self._scpi_ipv4.close()
         if hasattr(self,'_scpi_ipv6'):
             self._scpi_ipv6.shutdown(_socket.SHUT_RDWR)
+            self._scpi_ipv6.close()
 
     def __listener(self,scpisocket,scpihost):
         scpisocket.bind((scpihost, self._port))
@@ -118,8 +118,8 @@ class TcpListener(_Logger):
                 self._debug('Connection request from %s'%(connectionName))
                 if self._connectionThreads.has_key(connectionName) and \
                 self._connectionThreads[connectionName].isAlive():
-                    self.error("New connection from %s when it has already one."\
-                               "refusing the newer."%(connectionName))
+                    self.error("New connection from %s when it has already "\
+                               "one. refusing the newer."%(connectionName))
                 else:
                     self._connectionThreads[connectionName] = \
                     _threading.Thread(name=connectionName,
@@ -139,6 +139,8 @@ class TcpListener(_Logger):
                 self.warning("No data received, termination the connection")
                 connection.close()
                 return
-            ans = self._parent.input(data)
+            if hasattr(self._parent,'input') and \
+            callable(getattr(self._parent,"input")):
+                ans = self._parent.input(data)
             self._debug("skippy.input say %d"%(res))
             connection.send(ans)

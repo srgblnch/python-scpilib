@@ -31,13 +31,9 @@
 ###############################################################################
 
 
-#include "commands.py"
 from commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
-#include "logger.py"
 from logger import Logger as _Logger
-#include "tcpListener.py"
 from tcpListener import TcpListener
-#include "version.py"
 from version import version as _version
 
 
@@ -77,11 +73,13 @@ class scpi(_Logger):
             self._services['tcpListener'].listen()
 
     def __del__(self):
-        self._info("Delete request received")
+        self._debug("Delete request received")
         for key,service in self._services.items():
             if hasattr(service,'close'):
+                self._debug("Closing %s"%(key))
                 service.close()
             else:
+                self._debug("Deleting %s"%(key))
                 del service
 
     def __str__(self):
@@ -91,6 +89,9 @@ class scpi(_Logger):
         if self._specialCmds.has_key('idn'):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
+
+    def type(self):
+        return "scpi"
 
     def addSpecialCommand(self,name,readcb,writecb=None):
         '''
