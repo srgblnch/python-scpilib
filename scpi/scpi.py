@@ -35,6 +35,7 @@ from commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
 from logger import Logger as _Logger
 from tcpListener import TcpListener
 from version import version as _version
+from time import sleep as _sleep
 
 
 #flags for service activation
@@ -55,22 +56,14 @@ class scpi(_Logger):
     #TODO: %s %r of the object
     def __init__(self,services=TCPLISTENER_LOCAL,commandTree=None,
                  specialCommands=None,debug=False):
-        super(scpi,self).__init__()#_Logger.__init__(self,debug=debug)
+        super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
         self._specialCmds = specialCommands or {}
         self._info("Special commands: %r"%(specialCommands))
         self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
-        if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
-            local = services & TCPLISTENER_LOCAL
-            self._debug("Opening tcp listener (%s)"
-                        %("local" if local else "remote"))
-            self._services['tcpListener'] = TcpListener(name="TcpListener",
-                                                        parent=self,
-                                                        local=local,
-                                                        debug=debug)
-            self._services['tcpListener'].listen()
+        self.__buildTcpListener(services)
 
     def __del__(self):
         self._debug("Delete request received")
@@ -89,6 +82,34 @@ class scpi(_Logger):
         if self._specialCmds.has_key('idn'):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
+
+    def __buildTcpListener(self,services):
+        if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
+            local = services & TCPLISTENER_LOCAL
+            self._debug("Opening tcp listener (%s)"
+                        %("local" if local else "remote"))
+            self._services['tcpListener'] = TcpListener(name="TcpListener",
+                                                        parent=self,
+                                                        local=local,
+                                                        debug=self._debugFlag)
+            self._services['tcpListener'].listen()
+
+    @property
+    def remoteConenctionsAllowed(self):
+        return self._services['tcpListener']._local == TCPLISTENER_REMOTE
+
+    @remoteConenctionsAllowed.setter
+    def remoteConenctionsAllowed(self,value):
+        if type(value) != bool:
+            raise AssertionError("Only boolean can be assigned")
+        if value != self._services['tcpListener']._local:
+            tcpListener = self._services.pop('tcpListener')
+            tcpListener.close()
+            _sleep(3)
+            if value == True:
+                self.__buildTcpListener(TCPLISTENER_REMOTE)
+            else:
+                self.__buildTcpListener(TCPLISTENER_LOCAL)
 
     def addSpecialCommand(self,name,readcb,writecb=None):
         '''

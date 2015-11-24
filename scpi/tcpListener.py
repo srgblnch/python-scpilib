@@ -48,40 +48,47 @@ class TcpListener(_Logger):
     #FIXME: default should be local=False
     def __init__(self,name=None,parent=None,local=True,port=5025,
                  maxlisteners=_MAX_CLIENTS,ipv6=True,debug=False):
-        #Not in the header of the file due to cross imports
-        from scpi import scpi as _scpi
         _Logger.__init__(self,parent,debug)
-        if local:
-            self._host_ipv4 = '127.0.0.1'#_socket.gethostname()
-            self._host_ipv6 = '::1'#_socket.gethostname()
-        else:
-            self._host_ipv4 = ''
-            self._host_ipv6 = ''
         self._name = name or "TcpListener"
         self._parent = _weakref(parent)
+        self._local = local
         self._port = port
         self._maxlisteners = maxlisteners
-        self._scpi_ipv4 = _socket.socket(_socket.AF_INET,
-                                        _socket.SOCK_STREAM)
-        if ipv6:
-            if not _socket.has_ipv6:
-                self._error("IPv6 not supported by the platform")
-            else:
-                self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,
-                                                 _socket.SOCK_STREAM)
         self._joinEvent = _threading.Event()
         self._joinEvent.clear()
+        self._connectionThreads = {}
+        self.buildIpv4Socket()
+        try:
+            self.buildIpv6Socket()
+        except Exception,e:
+            self._error("IPv6 will not be available due to: %s"%e)
+        self._debug("Listener thread prepared")
+
+    def buildIpv4Socket(self):
+        if self._local:
+            self._host_ipv4 = '127.0.0.1'
+        else:
+            self._host_ipv4 = ''
+        self._scpi_ipv4 = _socket.socket(_socket.AF_INET,_socket.SOCK_STREAM)
         self._listener_ipv4 = _threading.Thread(name="Listener4",
                                                 target=self.__listener,
                                                 args=(self._scpi_ipv4,
                                                       self._host_ipv4,))
-        if ipv6:
-            self._listener_ipv6 = _threading.Thread(name="Listener6",
-                                                    target=self.__listener,
-                                                    args=(self._scpi_ipv6,
-                                                          self._host_ipv6,))
-        self._connectionThreads = {}
-        self._debug("Listener thread prepared")
+
+    def buildIpv6Socket(self):
+        if not self._local:
+            raise NotImplementedError("Not ready available the IPv6 in remote")
+        if not _socket.has_ipv6:
+            raise AssertionError("IPv6 not supported by the platform")
+        if self._local:
+            self._host_ipv6 = '::1'
+        else:
+            self._host_ipv6 = ''
+        self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,_socket.SOCK_STREAM)
+        self._listener_ipv6 = _threading.Thread(name="Listener6",
+                                                target=self.__listener,
+                                                args=(self._scpi_ipv6,
+                                                      self._host_ipv6,))
     
     def __del__(self):
         self.close()
@@ -106,7 +113,7 @@ class TcpListener(_Logger):
         self._shutdownSocket(self._scpi_ipv4)
         if hasattr(self,'_scpi_ipv6'):
             self._shutdownSocket(self._scpi_ipv6)
-        while self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive():
+        while self.isAlive():
             self._debug("Waiting for Listener threads")
             _sleep(1)
 
@@ -115,6 +122,9 @@ class TcpListener(_Logger):
             sock.shutdown(_socket.SHUT_RDWR)
         except Exception,e:
             _print_exc()
+
+    def isAlive(self):
+        return self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive()
 
     def _isIPv4ListenerAlive(self):
         return self._listener_ipv4.isAlive()
