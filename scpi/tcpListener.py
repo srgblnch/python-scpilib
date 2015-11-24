@@ -34,7 +34,9 @@
 from logger import Logger as _Logger
 import socket as _socket
 import threading as _threading
-
+from weakref import ref as _weakref
+from time import sleep as _sleep
+from traceback import print_exc as _print_exc
 
 _MAX_CLIENTS = 10
 
@@ -55,14 +57,17 @@ class TcpListener(_Logger):
         else:
             self._host = ''
         self._name = name or "TcpListener"
-        self._parent = parent
+        self._parent = _weakref(parent)
         self._port = port
         self._maxlisteners = maxlisteners
         self._scpi_ipv4 = _socket.socket(_socket.AF_INET,
                                         _socket.SOCK_STREAM)
         if ipv6:
-            self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,
-                                             _socket.SOCK_STREAM)
+            if not _socket.has_ipv6:
+                self._error("IPv6 not supported by the platform")
+            else:
+                self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,
+                                                 _socket.SOCK_STREAM)
         self._joinEvent = _threading.Event()
         self._joinEvent.clear()
         self._listener_ipv4 = _threading.Thread(name="Listener4",
@@ -91,15 +96,33 @@ class TcpListener(_Logger):
             self._listener_ipv6.start()
 
     def close(self):
-        self._info("%s close received"%self._name)
+        if self._joinEvent.isSet():
+            return
+        self._debug("%s close received"%self._name)
         if hasattr(self,'_joinEvent'):
-            self._info("Deleting TcpListener")
+            self._debug("Deleting TcpListener")
             self._joinEvent.set()
-        self._scpi_ipv4.shutdown(_socket.SHUT_RDWR)
-        self._scpi_ipv4.close()
+        try:
+            self._scpi_ipv4.shutdown(_socket.SHUT_RDWR)
+            #self._scpi_ipv4.close()
+        except Exception,e:
+                _print_exc()
         if hasattr(self,'_scpi_ipv6'):
-            self._scpi_ipv6.shutdown(_socket.SHUT_RDWR)
-            self._scpi_ipv6.close()
+            try:
+                self._scpi_ipv6.shutdown(_socket.SHUT_RDWR)
+                #self._scpi_ipv6.close()
+            except Exception,e:
+                _print_exc()
+        while self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive():
+            self._debug("Waiting for Listener threads")
+            _sleep(1)
+    
+    def _isIPv4ListenerAlive(self):
+        return self._listener_ipv4.isAlive()
+    def _isIPv6ListenerAlive(self):
+        if hasattr(self,'_listener_ipv6'):
+            return self._listener_ipv6.isAlive()
+        return False
 
     def __listener(self,scpisocket,scpihost):
         scpisocket.bind((scpihost, self._port))
@@ -110,7 +133,7 @@ class TcpListener(_Logger):
                 connection, address = scpisocket.accept()
             except Exception,e:
                 if self._joinEvent.isSet():
-                    self._info("Closing Listener")
+                    self._debug("Closing Listener")
                     return
                 self._error("Socket Accept Exception: %s"%e)
             else:
