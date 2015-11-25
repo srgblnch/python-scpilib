@@ -37,7 +37,6 @@ import socket as _socket
 import threading as _threading
 from time import sleep as _sleep
 from traceback import print_exc as _print_exc
-from weakref import ref as _weakref
 
 _MAX_CLIENTS = 10
 
@@ -47,11 +46,11 @@ class TcpListener(_Logger):
         TODO: describe it
     """
     #FIXME: default should be local=False
-    def __init__(self,name=None,parent=None,local=True,port=5025,
+    def __init__(self,name=None,parent=None,callback=None,local=True,port=5025,
                  maxlisteners=_MAX_CLIENTS,ipv6=True,debug=False):
         _Logger.__init__(self,parent,debug)
         self._name = name or "TcpListener"
-        self._parent = _weakref(parent)
+        self._callback = callback
         self._local = local
         self._port = port
         self._maxlisteners = maxlisteners
@@ -208,15 +207,10 @@ class TcpListener(_Logger):
             data = connection.recv(1024)
             self._debug("received %d bytes"%(len(data)))
             if len(data) == 0:
-                self.warning("No data received, termination the connection")
+                self._warning("No data received, termination the connection")
                 connection.close()
                 return
-            if hasattr(self._parent,'input') and \
-            callable(getattr(self._parent,"input")):
-                ans = self._parent.input(data)
-                self._debug("skippy.input say %d"%(ans))
+            if self._callback != None:
+                ans = self._callback(data)
+                self._debug("skippy.input say %r"%(ans))
                 connection.send(ans)
-            else:
-                raise TypeError("Parent doesn't have where to "\
-                                "callback with the answer!")
-

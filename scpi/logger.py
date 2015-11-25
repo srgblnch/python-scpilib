@@ -33,6 +33,7 @@
 from datetime import datetime as _datetime
 from threading import currentThread as _currentThread
 from threading import Lock as _Lock
+from weakref import ref as _weakref
 
 global lock
 lock  = _Lock()
@@ -55,7 +56,10 @@ class Logger(object):
     def __init__(self,parent=None,debug=False):
         super(Logger,self).__init__()
         self._name = "Logger"
-        self._parent = parent
+        if parent != None:
+            self._parent = _weakref(parent)
+        else:
+            self._parent=None
         self._debugFlag = debug
         #self._info("debug=%s"%self._debugFlag)
 

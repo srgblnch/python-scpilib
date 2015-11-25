@@ -90,6 +90,7 @@ class scpi(_Logger):
                         %("local" if local else "remote"))
             self._services['tcpListener'] = TcpListener(name="TcpListener",
                                                         parent=self,
+                                                        callback=self.input,
                                                         local=local,
                                                         debug=self._debugFlag)
             self._services['tcpListener'].listen()
