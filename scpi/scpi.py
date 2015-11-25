@@ -85,7 +85,7 @@ class scpi(_Logger):
 
     def __buildTcpListener(self,services):
         if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
-            local = services & TCPLISTENER_LOCAL
+            local = bool(services & TCPLISTENER_LOCAL)
             self._debug("Opening tcp listener (%s)"
                         %("local" if local else "remote"))
             self._services['tcpListener'] = TcpListener(name="TcpListener",
@@ -96,7 +96,7 @@ class scpi(_Logger):
 
     @property
     def remoteConenctionsAllowed(self):
-        return self._services['tcpListener']._local == TCPLISTENER_REMOTE
+        return self._services['tcpListener']._local
 
     @remoteConenctionsAllowed.setter
     def remoteConenctionsAllowed(self,value):
@@ -105,7 +105,9 @@ class scpi(_Logger):
         if value != self._services['tcpListener']._local:
             tcpListener = self._services.pop('tcpListener')
             tcpListener.close()
-            _sleep(3)
+            while tcpListener.isListening():
+                self._warning("Waiting for listerners finish")
+                _sleep(1)
             if value == True:
                 self.__buildTcpListener(TCPLISTENER_REMOTE)
             else:
