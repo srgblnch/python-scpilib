@@ -214,6 +214,9 @@ class TcpListener(_Logger):
             if hasattr(self._parent,'input') and \
             callable(getattr(self._parent,"input")):
                 ans = self._parent.input(data)
-            self._debug("skippy.input say %d"%(res))
-            connection.send(ans)
+                self._debug("skippy.input say %d"%(ans))
+                connection.send(ans)
+            else:
+                raise TypeError("Parent doesn't have where to "\
+                                "callback with the answer!")
 
