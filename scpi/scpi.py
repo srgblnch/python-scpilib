@@ -52,9 +52,23 @@ def __version__():
     return _version()
 
 class scpi(_Logger):
+    '''This is an object to be build in order to provide to your instrument
+       SCPI communications. By now it only provides network (ipv4 and ipv6)
+       communications, but if required it can be extended to support other
+       types.
+       
+       By default it builds sockets that only listen in the loopback network 
+       interface. By default we like to avoid to expose the conection. There
+       are two ways to allow direct remote connections. One in the constructor
+       by calling it with the parameter services=TCPLISTENER_REMOTE. The other
+       can be called once the object is createdm by setting the property
+       remoteConenctionsAllowed to True.
+       
+       
+    '''
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
-    def __init__(self,services=TCPLISTENER_LOCAL,commandTree=None,
+    def __init__(self,services=TCPLISTENER_LOCAL,port=5025,commandTree=None,
                  specialCommands=None,debug=False):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
@@ -63,6 +77,7 @@ class scpi(_Logger):
         self._info("Special commands: %r"%(specialCommands))
         self._info("Given commands: %r"%(self._commandTree))
         self._services = {}
+        self._port = port
         self.__buildTcpListener(services)
 
     def __del__(self):
@@ -92,6 +107,7 @@ class scpi(_Logger):
                                                         parent=self,
                                                         callback=self.input,
                                                         local=local,
+                                                        port=self._port,
                                                         debug=self._debugFlag)
             self._services['tcpListener'].listen()
 
@@ -182,6 +198,7 @@ class scpi(_Logger):
         line = line.split(';')
         results = []
         for i,command in enumerate(line):
+            command = command.strip()#avoid '\n' terminator if exist
             self._debug("Processing command: '%s'"%(command))
             if command.startswith('*'):
                 results.append(self._process_special_command(command[1:]))
@@ -211,20 +228,25 @@ class scpi(_Logger):
     def _process_special_command(self,cmd):
         #FIXME: ugly
         self._debug("current special keys: %s"%(self._specialCmds.keys()))
-        if cmd.count(':') > 0:
+        if cmd.count(':') > 0:#Not expected in special commands
             return float('NaN')
         for key in self._specialCmds.keys():
             self._debug("testing key %s ?= %s"%(key,cmd))
-            if cmd.lower().startswith(key):
+            if cmd.lower().startswith(key.lower()):
                 if cmd.endswith('?'):
+                    self._debug("Requesting read of %s"%(key))
                     return self._specialCmds[key].read()
                 else:
                     if cmd.count(' ')>0:
                         bar = cmd.split(' ')
                         name = bar[0],value = bar[-1]
+                        self._debug("Requesting write of %s with value %s"
+                                    %(name,value))
                         return self._specialCmds[name].write(value)
                     else:
+                        self._debug("Requesting write of %s without value"%(key))
                         return self._specialCmds[key].write()
+        self._warning("Command (%s) not found..."%(cmd))
         return float('NaN')
     
     def _process_normal_command(self,cmd):
