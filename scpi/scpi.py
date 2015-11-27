@@ -37,11 +37,31 @@ from tcpListener import TcpListener
 from version import version as _version
 from time import sleep as _sleep
 
+import signal
+import atexit
 
-#flags for service activation
+#DEPRECATED: flags for service activation
 TCPLISTENER_LOCAL  = 0b10000000
 TCPLISTENER_REMOTE = 0b01000000
 
+
+global scpiObjects
+scpiObjects = []
+
+@atexit.register
+def doOnExit():
+    print("proceeding with the exit process...")
+    for obj in scpiObjects:
+        obj.Close()
+
+def signalHandler(sigNum,frame):
+    print("Signal %s received (%s)"%(sigNum,frame))
+    print("len(scpiObjects)=%d"%len(scpiObjects))
+    doOnExit()
+
+signal.signal(signal.SIGINT,signalHandler)
+signal.signal(signal.SIGILL,signalHandler)
+signal.signal(signal.SIGTERM,signalHandler)
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d' 
@@ -68,67 +88,90 @@ class scpi(_Logger):
     '''
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
-    def __init__(self,services=TCPLISTENER_LOCAL,port=5025,commandTree=None,
-                 specialCommands=None,debug=False):
+    def __init__(self,commandTree=None,specialCommands=None,
+                 local=True,port=5025,debug=False,services=None):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
         self._specialCmds = specialCommands or {}
         self._info("Special commands: %r"%(specialCommands))
         self._info("Given commands: %r"%(self._commandTree))
-        self._services = {}
+        self._local = local
         self._port = port
-        self.__buildTcpListener(services)
+        self._services = {}
+        if not services == None:
+            msg = "The argument 'services' is deprecated, "\
+                  "please use the boolean 'local'"
+            header = "*"*len(msg)
+            print("%s\n%s\n%s"%(header,msg,header))
+            if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
+                self._local = bool(services & TCPLISTENER_LOCAL)
+        self.Open()
+        scpiObjects.append(self)
+
+    def __enter__(self):
+        self._debug("received a enter() request")
+        return self
+ 
+    def __exit__(self,type, value, traceback):
+        self._debug("received a exit(%s,%s,%s) request"
+                    %(type, value, traceback))
+        self.__del__()
 
     def __del__(self):
+        print("...")
         self._debug("Delete request received")
-        for key,service in self._services.items():
-            if hasattr(service,'close'):
-                self._debug("Closing %s"%(key))
-                service.close()
-            else:
-                self._debug("Deleting %s"%(key))
-                del service
+        scpiObjects.pop(scpiObjects.count(self))
+        self.Close()
 
     def __str__(self):
         return "%r"%(self)
-    
+
     def __repr__(self):
         if self._specialCmds.has_key('idn'):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
 
-    def __buildTcpListener(self,services):
-        if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
-            local = bool(services & TCPLISTENER_LOCAL)
-            self._debug("Opening tcp listener (%s)"
-                        %("local" if local else "remote"))
-            self._services['tcpListener'] = TcpListener(name="TcpListener",
-                                                        parent=self,
-                                                        callback=self.input,
-                                                        local=local,
-                                                        port=self._port,
-                                                        debug=self._debugFlag)
-            self._services['tcpListener'].listen()
+    def Open(self):
+        self.__buildTcpListener()
+
+    def Close(self):
+        for key in self._services.keys():
+            self._services[key].close()
+
+    def __buildTcpListener(self):
+        self._debug("Opening tcp listener (%s)"
+                    %("local" if self._local else "remote"))
+        self._services['tcpListener'] = TcpListener(name="TcpListener",
+                                                    parent=self,
+                                                    callback=self.input,
+                                                    local=self._local,
+                                                    port=self._port,
+                                                    debug=self._debugFlag)
+        self._services['tcpListener'].listen()
 
     @property
     def remoteConenctionsAllowed(self):
-        return self._services['tcpListener']._local
+        return not self._services['tcpListener']._local
 
     @remoteConenctionsAllowed.setter
     def remoteConenctionsAllowed(self,value):
         if type(value) != bool:
             raise AssertionError("Only boolean can be assigned")
-        if value != self._services['tcpListener']._local:
+        if value != (not self._services['tcpListener']._local):
             tcpListener = self._services.pop('tcpListener')
             tcpListener.close()
+            self._debug("Close the active listeners and their connections.")
             while tcpListener.isListening():
                 self._warning("Waiting for listerners finish")
                 _sleep(1)
+            self._debug("Building the new listeners.")
             if value == True:
                 self.__buildTcpListener(TCPLISTENER_REMOTE)
             else:
                 self.__buildTcpListener(TCPLISTENER_LOCAL)
+        else:
+            self._debug("Nothing to do when setting like it was.")
 
     def addSpecialCommand(self,name,readcb,writecb=None):
         '''
@@ -154,7 +197,9 @@ class scpi(_Logger):
     def specialCommands(self):
         return self._specialCmds.keys()
 
-    def addComponent(self,name,parent=None):
+    def addComponent(self,name,parent):
+        if not hasattr(parent,'keys'):
+            raise TypeError("For %s, parent doesn't accept components"%(name))
         if name in parent.keys():
             self._debug("component '%s' already exist"%(name))
             return
@@ -180,9 +225,10 @@ class scpi(_Logger):
         self._debug("Prepare to add command %s"%(FullName))
         tree = self._commandTree
         #preprocessing:
-        for part in nameParts:
+        for i,part in enumerate(nameParts):
             if len(part) == 0:
-                raise NameError("No null names allowed")
+                raise NameError("No null names allowed "\
+                                "(review element %d of %s)"%(i,FullName))
         if len(nameParts) > 1:
             for i,part in enumerate(nameParts[:-1]):
                 self.addComponent(part,tree)
@@ -333,10 +379,10 @@ def testScpi():
     printHeader("Testing scpi main class (version %s)"%(_version()))
     
     identity = InstrumentIdentification('ALBA','test',0,'0.0')
-    #BuildSpecial('IDN',specialSet,identity.idn)
-    scpiObj = scpi(TCPLISTENER_LOCAL,debug=True)
+    #---- BuildSpecial('IDN',specialSet,identity.idn)
+    scpiObj = scpi(local=True,debug=True)
     scpiObj.addSpecialCommand('IDN',identity.idn)
-    #invalid commands section
+    #---- invalid commands section
     try:
         scpiObj.addCommand(":startswithcolon",readcb=None)
     except NameError,e:
@@ -351,7 +397,7 @@ def testScpi():
     except Exception,e:
         print("\tUnexpected kind of exception!")
         return
-    #valid commands section
+    #---- valid commands section
     currentObj = AttrTest()
     scpiObj.addCommand('source:current:upper',readcb=currentObj.upperLimit,
                        writecb=currentObj.upperLimit)
@@ -403,7 +449,9 @@ def testScpi():
     cmd = "SOUR:CURR:LOWE?;:UPPE?"
     print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
     #end
-    scpiObj.__del__()
+    #del scpiObj
+    #scpiObj.__del__()
+    scpiObj.Close()
 
 
 def main():
@@ -412,8 +460,12 @@ def main():
         try:
             test()
         except Exception,e:
-            print("Test failed! %s"%e)
+            msg = "Test failed!"
+            border = "*"*len(msg)
+            msg = "%s\n%s:\n%s"%(border,msg,e)
+            print(msg)
             traceback.print_exc()
+            print(border)
             return
 
 

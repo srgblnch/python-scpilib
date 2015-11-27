@@ -48,7 +48,7 @@ class TcpListener(_Logger):
     #FIXME: default should be local=False
     def __init__(self,name=None,parent=None,callback=None,local=True,port=5025,
                  maxlisteners=_MAX_CLIENTS,ipv6=True,debug=False):
-        _Logger.__init__(self,parent,debug)
+        super(TcpListener,self).__init__(parent,debug)
         self._name = name or "TcpListener"
         self._callback = callback
         self._local = local
@@ -57,12 +57,54 @@ class TcpListener(_Logger):
         self._joinEvent = _threading.Event()
         self._joinEvent.clear()
         self._connectionThreads = {}
+        self.open()
+        self._debug("Listener thread prepared")
+
+    def __del__(self):
+        self.close()
+
+    def open(self):
         self.buildIpv4Socket()
         try:
             self.buildIpv6Socket()
         except Exception,e:
             self._error("IPv6 will not be available due to: %s"%e)
-        self._debug("Listener thread prepared")
+
+    def close(self):
+        if self._joinEvent.isSet():
+            return
+        self._debug("%s close received"%self._name)
+        if hasattr(self,'_joinEvent'):
+            self._debug("Deleting TcpListener")
+            self._joinEvent.set()
+        self._shutdownSocket(self._scpi_ipv4)
+        if hasattr(self,'_scpi_ipv6'):
+            self._shutdownSocket(self._scpi_ipv6)
+        if self._isListeningIpv4():
+            self._scpi_ipv4 = None
+        if self._isListeningIpv6():
+            self._scpi_ipv6 = None
+        _gccollect()
+        while self.isAlive():
+            _gccollect()
+            self._debug("Waiting for Listener threads")
+            _sleep(1)
+
+    @property
+    def port(self):
+        return self._port
+
+    def listen(self):
+        self._debug("Launching listener thread")
+        self._listener_ipv4.start()
+        if hasattr(self,'_listener_ipv6'):
+            self._listener_ipv6.start()
+
+    def isAlive(self):
+        return self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive()
+    
+    def isListening(self):
+        return self._isListeningIpv4() or self._isListeningIpv6()
 
     def buildIpv4Socket(self):
         if self._local:
@@ -90,48 +132,12 @@ class TcpListener(_Logger):
                                                 target=self.__listener,
                                                 args=(self._scpi_ipv6,
                                                       self._host_ipv6,))
-    
-    def __del__(self):
-        self.close()
-
-    @property
-    def port(self):
-        return self._port
-
-    def listen(self):
-        self._debug("Launching listener thread")
-        self._listener_ipv4.start()
-        if hasattr(self,'_listener_ipv6'):
-            self._listener_ipv6.start()
-
-    def close(self):
-        if self._joinEvent.isSet():
-            return
-        self._debug("%s close received"%self._name)
-        if hasattr(self,'_joinEvent'):
-            self._debug("Deleting TcpListener")
-            self._joinEvent.set()
-        self._shutdownSocket(self._scpi_ipv4)
-        if hasattr(self,'_scpi_ipv6'):
-            self._shutdownSocket(self._scpi_ipv6)
-        if self._isListeningIpv4():
-            self._scpi_ipv4 = None
-        if self._isListeningIpv6():
-            self._scpi_ipv6 = None
-        _gccollect()
-        while self.isAlive():
-            _gccollect()
-            self._debug("Waiting for Listener threads")
-            _sleep(1)
 
     def _shutdownSocket(self,sock):
         try:
             sock.shutdown(_socket.SHUT_RDWR)
         except Exception,e:
             _print_exc()
-
-    def isAlive(self):
-        return self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive()
 
     def _isIPv4ListenerAlive(self):
         return self._listener_ipv4.isAlive()
@@ -141,21 +147,41 @@ class TcpListener(_Logger):
         return False
 
     def __listener(self,scpisocket,scpihost):
-        listening = False; tries = 5; seconds = 3
-        while not listening:
+        try:
+            self.__prepareListener(scpisocket,scpihost,5)
+            self.__doListen(scpisocket)
+            self._debug("Listener thread finishing")
+        except SystemExit as e:
+            self._debug("Received a SystemExit (%s)"%e)
+            self.__del__()
+        except KeyboardInterrupt as e:
+            self._debug("Received a KeyboardInterrupt (%s)"%e)
+            self.__del__()
+        except GeneratorExit as e:
+            self._debug("Received a GeneratorExit (%s)"%e)
+            self.__del__()
+
+    def __prepareListener(self,scpisocket,scpihost,maxretries):
+        listening = False
+        tries = 0
+        seconds = 3
+        while tries < maxretries:
             try:
                 scpisocket.bind((scpihost, self._port))
                 scpisocket.listen(self._maxlisteners)
-                self._debug("Listener thread up and running")
-                listening = True
+                self._debug("Listener thread up and running (port %d, with "\
+                            "a maximum of %d connections in parallel)."
+                            %(self._port,self._maxlisteners))
+                return True
             except Exception,e:
-                tries -= 1
+                tries += 1
                 self._error("Couldn't bind the socket. %s\nException: %s"
-                            %("(Retry in %d seconds)"%(seconds) if tries > 0 
-                              else "(No more retries)",e))
-                if tries == 0:
-                    return
+                            %("(Retry in %d seconds)"%(seconds) \
+                            if tries < maxretries else "(No more retries)",e))
                 _sleep(seconds)
+        return False
+    
+    def __doListen(self,scpisocket):
         while not self._joinEvent.isSet():
             try:
                 connection, address = scpisocket.accept()
@@ -165,13 +191,10 @@ class TcpListener(_Logger):
                     del scpisocket
                     return
                 self._error("Socket Accept Exception: %s"%e)
+                _sleep(3)
             else:
                 self.__launchConnection(address,connection)
         scpisocket.close()
-        self._debug("Listener thread finishing")
-
-    def isListening(self):
-        return self._isListeningIpv4() or self._isListeningIpv6()
     
     def _isListeningIpv4(self):
         if hasattr(self,'_scpi_ipv4') and hasattr(self._scpi_ipv4,'fileno'):
