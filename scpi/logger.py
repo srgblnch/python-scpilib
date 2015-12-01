@@ -53,15 +53,10 @@ class Logger(object):
              _logger_INFO:   'INFO',
              _logger_DEBUG:  'DEBUG'}
 
-    def __init__(self,parent=None,debug=False):
+    def __init__(self,debug=False):
         super(Logger,self).__init__()
         self._name = "Logger"
-        if parent != None:
-            self._parent = _weakref(parent)
-        else:
-            self._parent=None
         self._debugFlag = debug
-        #self._info("debug=%s"%self._debugFlag)
 
     @property
     def depth(self):

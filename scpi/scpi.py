@@ -82,8 +82,7 @@ class scpi(_Logger):
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
     def __init__(self,commandTree=None,specialCommands=None,
-                 local=True,port=5025,debug=False,
-                 services=None):
+                 local=True,port=5025,autoOpen=True,debug=False,services=None):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -100,8 +99,8 @@ class scpi(_Logger):
             print("%s\n%s\n%s"%(header,msg,header))
             if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
                 self._local = bool(services & TCPLISTENER_LOCAL)
-#         atexit.register(doOnExit)
-        self.open()
+        if autoOpen:
+            self.open()
         scpiObjects.append(self)
 
     #TODO: status information method 
@@ -109,6 +108,8 @@ class scpi(_Logger):
 
     def __enter__(self):
         self._debug("received a enter() request")
+        if not self.isOpen():
+            self.open()
         return self
  
     def __exit__(self,type, value, traceback):
@@ -122,7 +123,8 @@ class scpi(_Logger):
         self._debug("Delete request received")
         if scpiObjects.count(self):
             scpiObjects.pop(scpiObjects.index(self))
-        self.close()
+        if self.isOpen():
+            self.close()
 
     def __str__(self):
         return "%r"%(self)
@@ -131,6 +133,11 @@ class scpi(_Logger):
         if self._specialCmds.has_key('idn'):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
+
+    @property
+    def isOpen(self):
+        return any([self._services[key].isListening() \
+                    for key in self._services.keys()])
 
     def open(self):
         self.__buildTcpListener()
@@ -143,7 +150,6 @@ class scpi(_Logger):
         self._debug("Opening tcp listener (%s)"
                     %("local" if self._local else "remote"))
         self._services['tcpListener'] = TcpListener(name="TcpListener",
-                                                    parent=self,
                                                     callback=self.input,
                                                     local=self._local,
                                                     port=self._port,

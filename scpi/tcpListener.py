@@ -46,9 +46,9 @@ class TcpListener(_Logger):
         TODO: describe it
     """
     #FIXME: default should be local=False
-    def __init__(self,name=None,parent=None,callback=None,local=True,port=5025,
+    def __init__(self,name=None,callback=None,local=True,port=5025,
                  maxlisteners=_MAX_CLIENTS,ipv6=True,debug=False):
-        super(TcpListener,self).__init__(parent,debug)
+        super(TcpListener,self).__init__(debug)
         self._name = name or "TcpListener"
         self._callback = callback
         self._local = local
@@ -112,6 +112,7 @@ class TcpListener(_Logger):
         else:
             self._host_ipv4 = '0.0.0.0'
         self._scpi_ipv4 = _socket.socket(_socket.AF_INET,_socket.SOCK_STREAM)
+        self._scpi_ipv4.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
         self._listener_ipv4 = _threading.Thread(name="Listener4",
                                                 target=self.__listener,
                                                 args=(self._scpi_ipv4,
@@ -127,7 +128,9 @@ class TcpListener(_Logger):
         else:
             self._host_ipv6 = '::'
         self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,_socket.SOCK_STREAM)
-        self._scpi_ipv6.setsockopt(_socket.IPPROTO_IPV6, _socket.IPV6_V6ONLY,True)
+        self._scpi_ipv6.setsockopt(_socket.IPPROTO_IPV6, _socket.IPV6_V6ONLY,
+                                   True)
+        self._scpi_ipv6.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
         self._listener_ipv6 = _threading.Thread(name="Listener6",
                                                 target=self.__listener,
                                                 args=(self._scpi_ipv6,
