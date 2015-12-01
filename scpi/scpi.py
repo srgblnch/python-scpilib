@@ -50,8 +50,6 @@ scpiObjects = []
 
 @atexit.register
 def doOnExit():
-    print("%s proceeding with the exit process..."
-          %(_currentThread().getName()))
     for obj in scpiObjects:
         obj.close()
 
@@ -82,7 +80,7 @@ class scpi(_Logger):
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
     def __init__(self,commandTree=None,specialCommands=None,
-                 local=True,port=5025,autoOpen=True,debug=False,services=None):
+                 local=True,port=5025,autoOpen=False,debug=False,services=None):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -108,7 +106,7 @@ class scpi(_Logger):
 
     def __enter__(self):
         self._debug("received a enter() request")
-        if not self.isOpen():
+        if not self.isOpen:
             self.open()
         return self
  
@@ -119,11 +117,10 @@ class scpi(_Logger):
         
 
     def __del__(self):
-        print("...")
         self._debug("Delete request received")
-        if scpiObjects.count(self):
-            scpiObjects.pop(scpiObjects.index(self))
-        if self.isOpen():
+        if self.isOpen:
+            if scpiObjects.count(self):
+                scpiObjects.pop(scpiObjects.index(self))
             self.close()
 
     def __str__(self):
