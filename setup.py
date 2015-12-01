@@ -42,7 +42,7 @@ setup(name = 'scpi',
       version = version.version(),
       author = "Sergi Blanch-Torn\'e",
       author_email = "sblanch@cells.es",
-      classifiers = ['Development Status :: 1 - Planning',
+      classifiers = ['Development Status :: 2 - Pre-Alpha',
                      'Intended Audience :: Developers',
                      'Intended Audience :: Science/Research',
                      'License :: OSI Approved :: '\
