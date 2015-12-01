@@ -40,7 +40,7 @@
 '''
 
 
-from logger import Logger as _Logger
+from .logger import Logger as _Logger
 
 
 class DictKey(_Logger,str):
@@ -369,7 +369,7 @@ def BuildSpecialCmd(name,parent,readcb,writecb=None):
 
 
 #---- TEST AREA
-from logger import printHeader
+from .logger import printHeader
 from random import randint
 
 
@@ -482,7 +482,7 @@ def main():
     for test in [testDictKey,testComponent,testAttr,testSpeciaCommands]:
         try:
             test()
-        except Exception,e:
+        except Exception as e:
             print("Test failed! %s"%e)
             traceback.print_exc()
             return

@@ -31,14 +31,14 @@
 ###############################################################################
 
 
-from commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
-from logger import Logger as _Logger
-from tcpListener import TcpListener
-from version import version as _version
+import atexit
+from .commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
+from .logger import Logger as _Logger
+from .tcpListener import TcpListener
+from .version import version as _version
 from time import sleep as _sleep
 
-import signal
-import atexit
+from threading import currentThread as _currentThread
 
 #DEPRECATED: flags for service activation
 TCPLISTENER_LOCAL  = 0b10000000
@@ -50,18 +50,11 @@ scpiObjects = []
 
 @atexit.register
 def doOnExit():
-    print("proceeding with the exit process...")
+    print("%s proceeding with the exit process..."
+          %(_currentThread().getName()))
     for obj in scpiObjects:
-        obj.Close()
+        obj.close()
 
-def signalHandler(sigNum,frame):
-    print("Signal %s received (%s)"%(sigNum,frame))
-    print("len(scpiObjects)=%d"%len(scpiObjects))
-    doOnExit()
-
-signal.signal(signal.SIGINT,signalHandler)
-signal.signal(signal.SIGILL,signalHandler)
-signal.signal(signal.SIGTERM,signalHandler)
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d' 
@@ -81,15 +74,16 @@ class scpi(_Logger):
        interface. By default we like to avoid to expose the conection. There
        are two ways to allow direct remote connections. One in the constructor
        by calling it with the parameter services=TCPLISTENER_REMOTE. The other
-       can be called once the object is createdm by setting the property
-       remoteConenctionsAllowed to True.
+       can be called once the object is created by setting the object property
+       'remoteAllowed' to True.
        
        
     '''
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
     def __init__(self,commandTree=None,specialCommands=None,
-                 local=True,port=5025,debug=False,services=None):
+                 local=True,port=5025,debug=False,
+                 services=None):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -106,8 +100,12 @@ class scpi(_Logger):
             print("%s\n%s\n%s"%(header,msg,header))
             if services & (TCPLISTENER_LOCAL|TCPLISTENER_REMOTE):
                 self._local = bool(services & TCPLISTENER_LOCAL)
-        self.Open()
+#         atexit.register(doOnExit)
+        self.open()
         scpiObjects.append(self)
+
+    #TODO: status information method 
+    #(report the open listeners and accepted connections ongoing).
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -117,12 +115,14 @@ class scpi(_Logger):
         self._debug("received a exit(%s,%s,%s) request"
                     %(type, value, traceback))
         self.__del__()
+        
 
     def __del__(self):
         print("...")
         self._debug("Delete request received")
-        scpiObjects.pop(scpiObjects.count(self))
-        self.Close()
+        if scpiObjects.count(self):
+            scpiObjects.pop(scpiObjects.index(self))
+        self.close()
 
     def __str__(self):
         return "%r"%(self)
@@ -132,10 +132,10 @@ class scpi(_Logger):
             return "scpi(%s)"%(self._specialCmds['idn'].read())
         return "scpi()"
 
-    def Open(self):
+    def open(self):
         self.__buildTcpListener()
 
-    def Close(self):
+    def close(self):
         for key in self._services.keys():
             self._services[key].close()
 
@@ -151,11 +151,11 @@ class scpi(_Logger):
         self._services['tcpListener'].listen()
 
     @property
-    def remoteConenctionsAllowed(self):
+    def remoteAllowed(self):
         return not self._services['tcpListener']._local
 
-    @remoteConenctionsAllowed.setter
-    def remoteConenctionsAllowed(self,value):
+    @remoteAllowed.setter
+    def remoteAllowed(self,value):
         if type(value) != bool:
             raise AssertionError("Only boolean can be assigned")
         if value != (not self._services['tcpListener']._local):
@@ -290,7 +290,8 @@ class scpi(_Logger):
                                     %(name,value))
                         return self._specialCmds[name].write(value)
                     else:
-                        self._debug("Requesting write of %s without value"%(key))
+                        self._debug("Requesting write of %s without value"
+                                    %(key))
                         return self._specialCmds[key].write()
         self._warning("Command (%s) not found..."%(cmd))
         return float('NaN')
@@ -326,7 +327,7 @@ class scpi(_Logger):
 
 
 #---- TEST AREA
-from logger import printHeader
+from .logger import printHeader
 
 
 class InstrumentIdentification(object):
@@ -385,16 +386,16 @@ def testScpi():
     #---- invalid commands section
     try:
         scpiObj.addCommand(":startswithcolon",readcb=None)
-    except NameError,e:
+    except NameError as e:
         print("\tNull name test passed")
-    except Exception,e:
+    except Exception as e:
         print("\tUnexpected kind of exception!")
         return
     try:
         scpiObj.addCommand("double::colons",readcb=None)
-    except NameError,e:
+    except NameError as e:
         print("\tDouble colon name test passed")
-    except Exception,e:
+    except Exception as e:
         print("\tUnexpected kind of exception!")
         return
     #---- valid commands section
@@ -429,7 +430,8 @@ def testScpi():
     print("\tRequested lower current limit (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWER -50"
-    print("\tSet the current lower limit to -50 (%s), and the answer is:\n\t\t%s"
+    print("\tSet the current lower limit to -50 (%s), "\
+          "and the answer is:\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWER?"
     print("\tRequest again the current lower limit (%s):\n\t\t%s"
@@ -441,13 +443,17 @@ def testScpi():
     print("\tRequest voltage value (%s):\n\t\t%s"
           %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:VOLT?"
-    print("\tRequest voltage using default (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
+    print("\tRequest voltage using default (%s):\n\t\t%s"
+          %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;SOUR:VOLT?"
-    print("\tConcatenate 2 commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
+    print("\tConcatenate 2 commands (%s):\n\t\t%s"
+          %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR?;:VOLT?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
+    print("\tConcatenate and nested commands (%s):\n\t\t%s"
+          %(cmd,scpiObj.input(cmd)))
     cmd = "SOUR:CURR:LOWE?;:UPPE?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"%(cmd,scpiObj.input(cmd)))
+    print("\tConcatenate and nested commands (%s):\n\t\t%s"
+          %(cmd,scpiObj.input(cmd)))
     #end
     #del scpiObj
     #scpiObj.__del__()
@@ -459,7 +465,7 @@ def main():
     for test in [testScpi]:
         try:
             test()
-        except Exception,e:
+        except Exception as e:
             msg = "Test failed!"
             border = "*"*len(msg)
             msg = "%s\n%s:\n%s"%(border,msg,e)

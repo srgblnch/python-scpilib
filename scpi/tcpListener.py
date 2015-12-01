@@ -31,7 +31,7 @@
 ###############################################################################
 
 
-from logger import Logger as _Logger
+from .logger import Logger as _Logger
 from gc import collect as _gccollect
 import socket as _socket
 import threading as _threading
@@ -67,7 +67,7 @@ class TcpListener(_Logger):
         self.buildIpv4Socket()
         try:
             self.buildIpv6Socket()
-        except Exception,e:
+        except Exception as e:
             self._error("IPv6 will not be available due to: %s"%e)
 
     def close(self):
@@ -136,7 +136,7 @@ class TcpListener(_Logger):
     def _shutdownSocket(self,sock):
         try:
             sock.shutdown(_socket.SHUT_RDWR)
-        except Exception,e:
+        except Exception as e:
             _print_exc()
 
     def _isIPv4ListenerAlive(self):
@@ -173,7 +173,7 @@ class TcpListener(_Logger):
                             "a maximum of %d connections in parallel)."
                             %(self._port,self._maxlisteners))
                 return True
-            except Exception,e:
+            except Exception as e:
                 tries += 1
                 self._error("Couldn't bind the socket. %s\nException: %s"
                             %("(Retry in %d seconds)"%(seconds) \
@@ -185,7 +185,7 @@ class TcpListener(_Logger):
         while not self._joinEvent.isSet():
             try:
                 connection, address = scpisocket.accept()
-            except Exception,e:
+            except Exception as e:
                 if self._joinEvent.isSet():
                     self._debug("Closing Listener")
                     del scpisocket
@@ -220,7 +220,7 @@ class TcpListener(_Logger):
                                   args=(address,connection))
                 self._debug("Connection for %s created"%(connectionName))
                 self._connectionThreads[connectionName].start()
-        except Exception,e:
+        except Exception as e:
             self._error("Cannot launch connection request from %s due to: %s"
                         %(connectionName,e))
 
