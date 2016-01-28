@@ -31,7 +31,10 @@
 ###############################################################################
 
 
-from .logger import Logger as _Logger
+try:
+    from .logger import Logger as _Logger
+except:
+    from logger import Logger as _Logger
 from gc import collect as _gccollect
 import socket as _socket
 import threading as _threading
@@ -119,8 +122,6 @@ class TcpListener(_Logger):
                                                       self._host_ipv4,))
 
     def buildIpv6Socket(self):
-#         if not self._local:
-#             raise NotImplementedError("Not ready available the IPv6 in remote")
         if not _socket.has_ipv6:
             raise AssertionError("IPv6 not supported by the platform")
         if self._local:

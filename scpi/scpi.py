@@ -32,10 +32,18 @@
 
 
 import atexit
-from .commands import Component,BuildComponent,BuildAttribute,BuildSpecialCmd
-from .logger import Logger as _Logger
-from .tcpListener import TcpListener
-from .version import version as _version
+try:
+    from .commands import Component,BuildComponent,BuildAttribute,\
+                          BuildSpecialCmd
+    from .logger import Logger as _Logger
+    from .tcpListener import TcpListener
+    from .version import version as _version
+except:
+    from commands import Component,BuildComponent,BuildAttribute,\
+                         BuildSpecialCmd
+    from logger import Logger as _Logger
+    from tcpListener import TcpListener
+    from version import version as _version
 from time import sleep as _sleep
 
 from threading import currentThread as _currentThread
@@ -80,7 +88,8 @@ class scpi(_Logger):
     #TODO: other incomming channels than network
     #TODO: %s %r of the object
     def __init__(self,commandTree=None,specialCommands=None,
-                 local=True,port=5025,autoOpen=False,debug=False,services=None):
+                 local=True,port=5025,autoOpen=False,debug=False,
+                 services=None):
         super(scpi,self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -207,7 +216,7 @@ class scpi(_Logger):
             self._debug("component '%s' already exist"%(name))
             return
         self._debug("Adding component '%s' (%s)"%(name,parent))
-        BuildComponent(name,parent)
+        return BuildComponent(name,parent)
     
     def addAttribute(self,name,parent,readcb,writecb=None,default=False):
         self._debug("Adding attribute '%s' (%s)"%(name,parent))
@@ -330,7 +339,10 @@ class scpi(_Logger):
 
 
 #---- TEST AREA
-from .logger import printHeader
+try:
+    from .logger import printHeader
+except:
+    from logger import printHeader
 
 
 class InstrumentIdentification(object):
@@ -384,83 +396,119 @@ def testScpi():
     
     identity = InstrumentIdentification('ALBA','test',0,'0.0')
     #---- BuildSpecial('IDN',specialSet,identity.idn)
-    scpiObj = scpi(local=True,debug=True)
-    scpiObj.addSpecialCommand('IDN',identity.idn)
-    #---- invalid commands section
-    try:
-        scpiObj.addCommand(":startswithcolon",readcb=None)
-    except NameError as e:
-        print("\tNull name test passed")
-    except Exception as e:
-        print("\tUnexpected kind of exception!")
-        return
-    try:
-        scpiObj.addCommand("double::colons",readcb=None)
-    except NameError as e:
-        print("\tDouble colon name test passed")
-    except Exception as e:
-        print("\tUnexpected kind of exception!")
-        return
-    #---- valid commands section
-    currentObj = AttrTest()
-    scpiObj.addCommand('source:current:upper',readcb=currentObj.upperLimit,
-                       writecb=currentObj.upperLimit)
-    scpiObj.addCommand('source:current:lower',readcb=currentObj.lowerLimit,
-                       writecb=currentObj.lowerLimit)
-    scpiObj.addCommand('source:current:value',readcb=currentObj.readTest,
-                       default=True)
-    voltageObj = AttrTest()
-    scpiObj.addCommand('source:voltage:upper',readcb=voltageObj.upperLimit,
-                       writecb=voltageObj.upperLimit)
-    scpiObj.addCommand('source:voltage:lower',readcb=voltageObj.lowerLimit,
-                       writecb=voltageObj.lowerLimit)
-    scpiObj.addCommand('source:voltage:value',readcb=voltageObj.readTest,
-                       default=True)
-    print("Command tree build: %r"%(scpiObj._commandTree))
-    
-    
-    print("Launch test:")
-    cmd = "*IDN?"
-    print("\tInstrument identification (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:UPPER?"
-    print("\tRequested upper current limit (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOU:CURRRI:UP?"
-    print("\tRequested something that cannot be requested (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER?"
-    print("\tRequested lower current limit (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER -50"
-    print("\tSet the current lower limit to -50 (%s), "\
-          "and the answer is:\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER?"
-    print("\tRequest again the current lower limit (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT:LOWER?"
-    print("\tRequest lower voltage limit (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT:VALU?"
-    print("\tRequest voltage value (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT?"
-    print("\tRequest voltage using default (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR?;SOUR:VOLT?"
-    print("\tConcatenate 2 commands (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR?;:VOLT?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWE?;:UPPE?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"
-          %(cmd,scpiObj.input(cmd)))
-    #end
-    #del scpiObj
-    #scpiObj.__del__()
-    scpiObj.Close()
+    with scpi(local=True,debug=True) as scpiObj:
+        scpiObj.addSpecialCommand('IDN',identity.idn)
+        #---- invalid commands section
+        try:
+            scpiObj.addCommand(":startswithcolon",readcb=None)
+        except NameError as e:
+            print("\tNull name test passed")
+        except Exception as e:
+            print("\tUnexpected kind of exception!")
+            return
+        try:
+            scpiObj.addCommand("double::colons",readcb=None)
+        except NameError as e:
+            print("\tDouble colon name test passed")
+        except Exception as e:
+            print("\tUnexpected kind of exception!")
+            return
+        #---- valid commands section
+        currentObj = AttrTest()
+        voltageObj = AttrTest()
+        # * commands can de added by telling their full name:
+        scpiObj.addCommand('source:current:upper',readcb=currentObj.upperLimit,
+                           writecb=currentObj.upperLimit)
+        scpiObj.addCommand('source:current:lower',readcb=currentObj.lowerLimit,
+                           writecb=currentObj.lowerLimit)
+        scpiObj.addCommand('source:current:value',readcb=currentObj.readTest,
+                           default=True)
+        scpiObj.addCommand('source:voltage:upper',readcb=voltageObj.upperLimit,
+                           writecb=voltageObj.upperLimit)
+        scpiObj.addCommand('source:voltage:lower',readcb=voltageObj.lowerLimit,
+                           writecb=voltageObj.lowerLimit)
+        scpiObj.addCommand('source:voltage:value',readcb=voltageObj.readTest,
+                           default=True)
+        # * They can be also created in an iterative way
+        baseCmdName = 'basicloop'
+        for (subCmdName,subCmdObj) in [('current',currentObj),
+                                       ('voltage',voltageObj)]:
+            for (attrName,attrFunc) in [('upper','upperLimit'),
+                                        ('lower','LowerLimit'),
+                                        ('value','readTest')]:
+                if hasattr(subCmdObj,attrFunc):
+                    cbFunc = getattr(subCmdObj,attrFunc)
+                    if attrName == 'value':
+                        default=True
+                    else:
+                        default=False
+                    scpiObj.addCommand('%s:%s:%s'
+                                       %(baseCmdName,subCmdName,attrName),
+                                       readcb=cbFunc,default=default)
+                    #Basically is the same than the first example, but the
+                    #addCommand is constructed with variables in neasted loops
+        # * Another alternative to create the tree in an iterative way would be
+        itCmd = 'iterative'
+        itObj = scpiObj.addComponent(itCmd,scpiObj._commandTree)
+        for subcomponent in ['current','voltage']:
+            subcomponentObj = scpiObj.addComponent(subcomponent,itObj)
+            for (attrName,attrFunc) in [('upper','upperLimit'),
+                                        ('lower','LowerLimit'),
+                                        ('value','readTest')]:
+                if hasattr(subCmdObj,attrFunc):
+                    cbFunc = getattr(subCmdObj,attrFunc)
+                    if attrName == 'value':
+                        default=True
+                    else:
+                        default=False
+                    scpiObj.addAttribute(attrName,subcomponentObj,cbFunc,
+                                         default=default)
+                    #In this case, the intermediate objects of the tree are
+                    #build and it is in the innier loop where they have the 
+                    #attributes created.
+                    # * Use with very big care this option because the library
+                    # * don't guarantee that all the branches of the tree will
+                    # * have the appropiate leafs.
+        print("Command tree build: %r"%(scpiObj._commandTree))
+        print("Launch test:")
+        cmd = "*IDN?"
+        print("\tInstrument identification (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR:UPPER?"
+        print("\tRequested upper current limit (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOU:CURRRI:UP?"
+        print("\tRequested something that cannot be requested (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR:LOWER?"
+        print("\tRequested lower current limit (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR:LOWER -50"
+        print("\tSet the current lower limit to -50 (%s), "\
+              "and the answer is:\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR:LOWER?"
+        print("\tRequest again the current lower limit (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:VOLT:LOWER?"
+        print("\tRequest lower voltage limit (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:VOLT:VALU?"
+        print("\tRequest voltage value (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:VOLT?"
+        print("\tRequest voltage using default (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR?;SOUR:VOLT?"
+        print("\tConcatenate 2 commands (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR?;:VOLT?"
+        print("\tConcatenate and nested commands (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        cmd = "SOUR:CURR:LOWE?;:UPPE?"
+        print("\tConcatenate and nested commands (%s):\n\t\t%s"
+              %(cmd,scpiObj.input(cmd)))
+        #end
 
 
 def main():

@@ -39,8 +39,10 @@
     optional) for the actions.
 '''
 
-
-from .logger import Logger as _Logger
+try:
+    from .logger import Logger as _Logger
+except:
+    from logger import Logger as _Logger
 
 
 class DictKey(_Logger,str):
@@ -114,6 +116,8 @@ class Attribute(DictKey):
     '''
         Leaf node of the scpi command tree
         TODO: explain property_cb difference with {read,write}_cb
+        
+        Example: COMPonent:COMPonent:ATTRibute
     '''
     def __init__(self,name,*args,**kargs):
         #super(Attribute,self).__init__(*args,**kargs)
@@ -195,6 +199,8 @@ def BuildAttribute(name,parent,readcb=None,writecb=None,default=False):
 class Component(_Logger,dict):
     '''
         Intermediated nodes of the scpi command tree.
+        
+        Ex: COMPonent:COMPonent:ATTRibute
     '''
     def __init__(self,name=None,debug=False,*args,**kargs):
         #super(Component,self).__init__(debug,*args,**kargs)
@@ -369,7 +375,10 @@ def BuildSpecialCmd(name,parent,readcb,writecb=None):
 
 
 #---- TEST AREA
-from .logger import printHeader
+try:
+    from .logger import printHeader
+except:
+    from logger import printHeader
 from random import randint
 
 
