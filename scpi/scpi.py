@@ -252,17 +252,19 @@ class scpi(_Logger):
         return self._commandTree.keys()
 
     def input(self,line):
-        self._debug("Received '%s' input"%(line))
+        self._debug("Received %r input"%(line))
+        while line[-1] in ['\r','\n',';']:
+            line = line[:-1]
         line = line.split(';')
         results = []
         for i,command in enumerate(line):
             command = command.strip()#avoid '\n' terminator if exist
-            self._debug("Processing command: '%s'"%(command))
+            self._debug("Processing command: %r"%(command))
             if command.startswith('*'):
                 results.append(self._process_special_command(command[1:]))
             elif command.startswith(':'):
                 if i == 0:
-                    self._error("For command '%s': Not possible to start "\
+                    self._error("For command %r: Not possible to start "\
                                 "with ':', without previous command"
                                 %(command))
                     results.append(float('NaN'))
@@ -271,17 +273,17 @@ class scpi(_Logger):
                     #with the previous (i-1) command
                     command = \
                     "".join("%s%s"%(line[i-1].rsplit(':',1)[0],command))
-                    self._debug("Command expanded to '%s'"%(command))
+                    self._debug("Command expanded to %r"%(command))
                     results.append(self._process_normal_command(command))
             else:
                 results.append(self._process_normal_command(command))
-        self._debug("Answers: %s"%(results))
+        self._debug("Answers: %r"%(results))
         answer = ""
         for res in results:
             answer = "".join("%s%s;"%(answer,res))
-        self._debug("Answer: %s"%(answer))
+        self._debug("Answer: %r"%(answer))
         #FIXME: has the last character to be ';'?
-        return answer[:-1]
+        return answer[:-1]+'\r\n'
     
     def _process_special_command(self,cmd):
         #FIXME: ugly
