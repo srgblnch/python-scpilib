@@ -253,13 +253,16 @@ class scpi(_Logger):
 
     def input(self,line):
         self._debug("Received %r input"%(line))
-        while line[-1] in ['\r','\n',';']:
+        while len(line) > 0 and line[-1] in ['\r','\n',';']:
+            self._debug("from %r remove %r"%(line,line[-1]))
             line = line[:-1]
+        if len(line) == 0:
+            return ''
         line = line.split(';')
         results = []
         for i,command in enumerate(line):
             command = command.strip()#avoid '\n' terminator if exist
-            self._debug("Processing command: %r"%(command))
+            self._debug("Processing %dth command: %r"%(i+1,command))
             if command.startswith('*'):
                 results.append(self._process_special_command(command[1:]))
             elif command.startswith(':'):
