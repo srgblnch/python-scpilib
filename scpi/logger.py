@@ -53,9 +53,9 @@ class Logger(object):
              _logger_INFO:   'INFO',
              _logger_DEBUG:  'DEBUG'}
 
-    def __init__(self,debug=False):
+    def __init__(self, name="Logger", debug=False):
         super(Logger,self).__init__()
-        self._name = "Logger"
+        self._name = name
         self._debugFlag = debug
 
     @property

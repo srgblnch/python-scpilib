@@ -44,22 +44,25 @@ try:
 except:
     from logger import Logger as _Logger
 
+MINIMUMKEYLENGHT = 4
 
 class DictKey(_Logger,str):
     '''
         This class is made to allow the dictionary keys to find a match using 
         the shorter strings allowed in the scpi specs.
     '''
-    def __init__(self,value,minimum=4,debug=False,*args,**kargs):
-        #super(DictKey,self).__init__(value,minimum,*args,**kargs)
-        _Logger.__init__(self,debug=debug)
-        str.__init__(value)
+    def __init__(self, value, *args, **kargs):
+        super(DictKey,self).__init__(*args, **kargs)
         if not value.isalpha():
             raise NameError("key shall be strictly alphabetic")
         self._name = value
-        self._minimum = minimum
-        if len(self._name) < self._minimum:
-            raise NameError("value string shall be almost the minimum size")
+        if 0 < len(self._name) < MINIMUMKEYLENGHT:
+            self.minimum = len(value)
+        else:
+            self.minimum = MINIMUMKEYLENGHT
+        if len(self._name) < self.minimum:
+            raise NameError("value string shall be almost "
+                            "the minimum size")
     
     @property
     def minimum(self):
@@ -119,12 +122,12 @@ class Attribute(DictKey):
         
         Example: COMPonent:COMPonent:ATTRibute
     '''
-    def __init__(self,name,*args,**kargs):
-        #super(Attribute,self).__init__(*args,**kargs)
-        DictKey.__init__(self,name,*args,**kargs)
+    def __init__(self,*args,**kargs):
+        super(Attribute,self).__init__(*args,**kargs)
         self._parent = None
         self._read_cb = None
         self._write_cb = None
+        self._hasChannels = False
 
     def __str__(self):
         repr = "%s"%(self._name)
@@ -139,6 +142,10 @@ class Attribute(DictKey):
         return ""#.join("\n%s%s"%(indentation,DictKey.__repr__(self)))
 
     @property
+    def name(self):
+        return self._name
+
+    @property
     def parent(self):
         return self._parent
     
@@ -146,15 +153,20 @@ class Attribute(DictKey):
     def parent(self,value):
         self._parent = value
 
-#    @property
-#    def property_cb(self):
-#        if self._read_cb == self._write_cb or self._write_cb == None:
-#            return self._read_cb
-#        return None
-#        
-#    @property_cb.setter
-#    def property_cb(self,cb):
-#        self._property_cb = cb
+    @property
+    def hasChannels(self):
+        return self._hasChannels
+
+    def checkChannels(self):
+        parent = self.parent
+        while parent != None:
+            if parent.hasChannels:
+                self._hasChannels = True
+                self._info("%s: Channels found for %s component"
+                           % (self.name,parent.name))
+                return
+            parent = parent.parent  # next
+        self._info("%s: No channels found" % (self.name))
 
     @property
     def read_cb(self):
@@ -188,12 +200,8 @@ def BuildAttribute(name,parent,readcb=None,writecb=None,default=False):
     attr.write_cb = writecb
     if default:
         parent.default = name
+    attr.checkChannels()
     return attr
-
-
-#TODO: DictKeys that ends with numbers (that represents something like channels
-#      shall not include the number in the name and shoud search for 
-#      correspondence.
 
 
 class Component(_Logger,dict):
@@ -202,14 +210,13 @@ class Component(_Logger,dict):
         
         Ex: COMPonent:COMPonent:ATTRibute
     '''
-    def __init__(self,name=None,debug=False,*args,**kargs):
-        #super(Component,self).__init__(debug,*args,**kargs)
-        _Logger.__init__(self,debug=debug)
-        dict.__init__(self,args,**kargs)
-        self._name = name
+    def __init__(self, *args, **kargs):
+        super(Component,self).__init__(*args, **kargs)
         self._parent = None
         self._defaultKey = None
-    
+        self._howMany = None
+        self._hasChannels = False
+
     def __str__(self):
         repr = "%s"%(self._name)
         parent = self._parent
@@ -217,7 +224,7 @@ class Component(_Logger,dict):
             repr = "".join("%s:%s"%(parent._name,repr))
             parent = parent._parent
         return repr
-    
+
     def __repr__(self):
         indentation = "\t"*self.depth
         repr = ""
@@ -228,11 +235,21 @@ class Component(_Logger,dict):
                 repr = "".join("%s\n%s%r"%(repr,indentation,key))
             else:
                 if item.default != None:
-                    repr = "".join("%s\n%s%r: (default %s) %r"
-                                   %(repr,indentation,key,item.default,item))
+                    isDefault = " (default %s) " % item.default
                 else:
-                    repr = "".join("%s\n%s%r:%r"%(repr,indentation,key,item))
+                    isDefault = ""
+                if isinstance(item,Channel):
+                    hasChannels = "NN"
+                else:
+                    hasChannels = ""
+                repr = "".join("%s\n%s%r%s:%s%r"
+                               % (repr, indentation, key, hasChannels,
+                                  isDefault, item))
         return repr
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def parent(self):
@@ -241,6 +258,27 @@ class Component(_Logger,dict):
     @parent.setter
     def parent(self,value):
         self._parent = value
+
+    @property
+    def hasChannels(self):
+        return self._hasChannels
+    
+    @property
+    def isChanneled(self):
+        itis = self._howMany is not None
+        self._info("isChanneled = %s" % itis)
+        return itis
+
+    def checkChannels(self):
+        parent = self.parent
+        while parent != None:
+            if parent.hasChannels:
+                self._hasChannels = True
+                self._info("%s: Channels found for %s component"
+                           % (self.name,parent.name))
+                return
+            parent = parent.parent  # next
+        self._info("%s: No channels found" % (self.name))
 
     def __getitem__(self, key):
         '''
@@ -261,20 +299,20 @@ class Component(_Logger,dict):
                   %(str(dict.get(self,'name_label')),key,str(val)))
         return val
     
-    def __setitem__(self,key,val):
+    def __setitem__(self, key, val):
         '''
-            The key is case insensitive, then we store it as lower case to 
+            The key is case insensitive, then we store it as lower case to
             compare every where lower cases. Also the key corresponds to any
             substring of it with the minimum size of 'minimumKey'
         '''
         if type(key) != DictKey:
             key = DictKey(key)
-        if not type(val) in [Component,Attribute]:
-            raise ValueError("dictionary content shall be an attribute "\
-                             "or another Component")
+        if not isinstance(val, (Component, Attribute)):
+            raise ValueError("dictionary content shall be an attribute "
+                             "or another Component (given %s)" % type(val))
         self._debug("SET %s['%r'] = %s"
-                   %(str(dict.get(self,'name_label')),key,str(val)))
-        dict.__setitem__(self,key,val)
+                   % (str(dict.get(self, 'name_label')), key, str(val)))
+        dict.__setitem__(self, key, val)
         val.parent = self
 
     @property
@@ -302,10 +340,11 @@ def BuildComponent(name=None,parent=None):
     component.parent = parent
     if parent != None and name != None:
         parent[name] = component
+    component.checkChannels()
     return component
 
 
-class SpecialCommand(_Logger,object):
+class SpecialCommand(Component):
     '''
         Special commands that starts with '*' character. To be know, the 
         mandatory commands that must have an instrument that provice scpi
@@ -329,10 +368,8 @@ class SpecialCommand(_Logger,object):
         *TST?: self-test query
         *WAI: wait-to-continue command
     '''
-    def __init__(self,name,debug=False,*args,**kargs):
-        _Logger.__init__(self,debug=debug,*args,**kargs)
-        object.__init__(self)
-        self._name = name
+    def __init__(self,*args,**kargs):
+        super(SpecialCommand,self).__init__(*args,**kargs)
         self._readcb = None
         self._writecb = None
         
@@ -372,6 +409,21 @@ def BuildSpecialCmd(name,parent,readcb,writecb=None):
     special.writecb = writecb
     parent[name.lower()] = special
     return special
+
+
+class Channel(Component):
+    def __init__(self,howMany=None,*args,**kargs):
+        super(Channel,self).__init__(*args,**kargs)
+        self._howMany = howMany
+        self._hasChannels = True
+
+
+def BuildChannel(name=None,howMany=None,parent=None):
+    channel = Channel(name=name,howMany=howMany)
+    channel.parent = parent
+    if parent != None and name != None:
+        parent[name] = channel
+    return channel
 
 
 #---- TEST AREA
@@ -477,18 +529,65 @@ def idn():
 def testSpeciaCommands(output=True):
     if output:
         printHeader("Testing the special commands construction")
-    scpiSpecials = {}
+    scpiSpecials = BuildComponent()
     idnCmd = BuildSpecialCmd("IDN",scpiSpecials,idn)
     if output:
         print("IDN answer: %s"%(scpiSpecials["IDN"].read()))
-#    if output:
-#        print("%r"%scpiSpecials)
     return scpiSpecials
+
+
+class ChannelTest:
+    def __init__(self,channels=4,upperLimit=100,lowerLimit=-100):
+        self._upperLimit = [upperLimit]*channels
+        self._lowerLimit = [lowerLimit]*channels
+    def readTest(self,ch):
+        return randint(self._lowerLimit[ch],self._upperLimit[ch])
+    def upperLimit(self,ch,value=None):
+        if value == None:
+            return self._upperLimit[ch]
+        self._upperLimit[ch] = float(value)
+    def lowerLimit(self,ch,value=None):
+        if value == None:
+            return self._lowerLimit[ch]
+        self._lowerLimit[ch] = float(value)
+
+
+def testChannels(output=True):
+    if output:
+        printHeader("Testing the channels commands construction")
+    scpiChannels = BuildComponent()
+    voltageObj = ChannelTest()
+    currentObj = ChannelTest()
+    channels = BuildChannel("channel",4,scpiChannels)
+    voltageComp = BuildComponent('voltage',channels)
+    UpperVoltage = BuildAttribute('upper',voltageComp,
+                                  readcb=voltageObj.upperLimit,
+                                  writecb=voltageObj.upperLimit)
+    LowerVoltage = BuildAttribute('lower',voltageComp,
+                                  readcb=voltageObj.lowerLimit,
+                                  writecb=voltageObj.lowerLimit)
+    ReadVoltage = BuildAttribute('value',voltageComp,
+                                  readcb=voltageObj.readTest,
+                                  default=True)
+    currentComp = BuildComponent('current',channels)
+    UpperCurrent = BuildAttribute('upper',currentComp,
+                                  readcb=currentObj.upperLimit,
+                                  writecb=currentObj.upperLimit)
+    LowerCurrent = BuildAttribute('lower',currentComp,
+                                  readcb=currentObj.lowerLimit,
+                                  writecb=currentObj.lowerLimit)
+    ReadCurrent = BuildAttribute('value',currentComp,
+                                  readcb=currentObj.readTest,
+                                  default=True)
+    if output:
+        print("%r"%scpiChannels)
+    return scpiChannels
 
 
 def main():
     import traceback
-    for test in [testDictKey,testComponent,testAttr,testSpeciaCommands]:
+    for test in [testDictKey, testComponent, testAttr, testSpeciaCommands,
+                 testChannels]:
         try:
             test()
         except Exception as e:
