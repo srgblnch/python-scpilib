@@ -168,7 +168,9 @@ class Attribute(DictKey):
     def read_cb(self, function):
         self._read_cb = function
 
-    def read(self):
+    def read(self, ch=None):
+        if self.hasChannels and ch is not None:
+            return self._read_cb(ch)
         return self._read_cb()
 
     @property
@@ -179,7 +181,9 @@ class Attribute(DictKey):
     def write_cb(self, function):
         self._write_cb = function
 
-    def write(self, value):
+    def write(self, ch=None, value=None):
+        if self.hasChannels and ch is not None:
+            return self._read_cb(ch, value)
         self._write_cb(value)
 
 
@@ -252,6 +256,15 @@ class Component(_Logger, dict):
         self._parent = value
 
     @property
+    def default(self):
+        return self._defaultKey
+
+    @default.setter
+    def default(self, value):
+        if value in self.keys():
+            self._defaultKey = value
+
+    @property
     def hasChannels(self):
         return self._hasChannels
 
@@ -306,15 +319,6 @@ class Component(_Logger, dict):
                     % (str(dict.get(self, 'name_label')), key, str(val)))
         dict.__setitem__(self, key, val)
         val.parent = self
-
-    @property
-    def default(self):
-        return self._defaultKey
-
-    @default.setter
-    def default(self, value):
-        if value in self.keys():
-            self._defaultKey = value
 
     def read(self):
         if self._defaultKey:
