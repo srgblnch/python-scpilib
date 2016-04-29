@@ -37,6 +37,7 @@ except:
     from tcpListener import TcpListener
     from version import version as _version
 from time import sleep as _sleep
+from time import time as _time
 
 from threading import currentThread as _currentThread
 
@@ -260,6 +261,7 @@ class scpi(_Logger):
 
     def input(self, line):
         self._debug("Received %r input" % (line))
+        start_t = _time()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
             self._debug("from %r remove %r" % (line, line[-1]))
             line = line[:-1]
@@ -292,10 +294,13 @@ class scpi(_Logger):
         for res in results:
             answer = "".join("%s%s;" % (answer, res))
         self._debug("Answer: %r" % (answer))
+        self._debug("Query reply send after %g ms" % ((_time()-start_t)*1000))
         # FIXME: has the last character to be ';'?
         return answer[:-1]+'\r\n'
 
     def _process_special_command(self, cmd):
+        start_t = _time()
+        result = None
         # FIXME: ugly
         self._debug("current special keys: %s" % (self._specialCmds.keys()))
         if cmd.count(':') > 0:  # Not expected in special commands
@@ -305,22 +310,29 @@ class scpi(_Logger):
             if cmd.lower().startswith(key.lower()):
                 if cmd.endswith('?'):
                     self._debug("Requesting read of %s" % (key))
-                    return self._specialCmds[key].read()
-                else:
-                    if cmd.count(' ') > 0:
-                        bar = cmd.split(' ')
-                        name, value = bar
-                        self._debug("Requesting write of %s with value %s"
-                                    % (name, value))
-                        return self._specialCmds[name].write(value)
-                    else:
-                        self._debug("Requesting write of %s without value"
-                                    % (key))
-                        return self._specialCmds[key].write()
-        self._warning("Command (%s) not found..." % (cmd))
-        return float('NaN')
+                    result = self._specialCmds[key].read()
+                    break
+                if cmd.count(' ') > 0:
+                    bar = cmd.split(' ')
+                    name, value = bar
+                    self._debug("Requesting write of %s with value %s"
+                                % (name, value))
+                    result = self._specialCmds[name].write(value)
+                    break
+                self._debug("Requesting write of %s without value"
+                            % (key))
+                result = self._specialCmds[key].write()
+                break
+        self._debug("special command %s processed in %g ms"
+                   % (cmd, (_time()-start_t)*1000))
+        if result is None:
+            self._warning("Command (%s) not found..." % (cmd))
+            return float('NaN')
+        return result
 
     def _process_normal_command(self, cmd):
+        start_t = _time()
+        answer = None
         keywords = cmd.split(':')
         tree = self._commandTree
         channelNum = None
@@ -339,15 +351,16 @@ class scpi(_Logger):
                     try:
                         if channelNum:
                             self._debug("do read with channel")
-                            return tree[key[:-1]].read(channelNum)
-                        return tree[key[:-1]].read()
+                            answer = tree[key[:-1]].read(channelNum)
+                        else:
+                            answer = tree[key[:-1]].read()
                         # TODO: support list readings and its conversion to
                         #      '#NMMMMMMMMM...' stream
                         # This may require a DataFormat feature to pack the
                         # data in bytes, shorts or longs.
                     except Exception as e:
-                        self._debug("Exception reading %s" % (e))
-                        return float('NaN')
+                        self._warning("Exception reading %s: %s" % (cmd, e))
+                        answer = float('NaN')
                 else:
                     try:
                         bar = key.split(' ')
@@ -358,13 +371,17 @@ class scpi(_Logger):
                         if channelNum:
                             self._debug("do write with channel")
                             tree[key].write(channelNum, value)
-                            return tree[key].read(channelNum)
-                        tree[key].write(value)
-                        # TODO: there's a SCPI command to inhibit this answer
-                        return tree[key].read()
+                            answer = tree[key].read(channelNum)
+                        else:
+                            tree[key].write(value)
+                            # TODO: there's a SCPI command to inhibit this read
+                            answer = tree[key].read()
                     except Exception as e:
-                        self._debug("Exception writing %s" % (e))
-                        return float('NaN')
+                        self._warning("Exception writing %s: %s" % (cmd, e))
+                        answer = float('NaN')
+        self._debug("command %s processed in %g ms"
+                   % (cmd, (_time()-start_t)*1000))
+        return answer
 
 
 # ---- TEST AREA
@@ -423,7 +440,8 @@ class InstrumentIdentification(object):
                                 self.serialNumber, self.firmwareVersion)
 
 
-stepTime = 1
+stepTime = .1
+concatenatedCmds = 50
 
 
 def _wait():
@@ -432,26 +450,27 @@ def _wait():
 
 
 def testScpi(debug=False):
-    from commands import AttrTest
+    start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     identity = InstrumentIdentification('ALBA', 'test', 0, '0.0')
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
         checkIDN(scpiObj, identity)
         _wait()
-        checkInvalidCmds(scpiObj)
+        addInvalidCmds(scpiObj)
         _wait()
-        checkValidCommands(scpiObj)
+        addValidCommands(scpiObj)
         _wait()
-        checkCommandExec(scpiObj)
-        doCheckMultipleCommands(scpiObj)
+        checkCommandExecution(scpiObj)
+        checkMultipleCommands(scpiObj)
+    _printHeader("Tests done: everything OK (%g s)" % (_time()-start_t))
 
 
 def checkIDN(scpiObj, identity):
     scpiObj.addSpecialCommand('IDN', identity.idn)
 
 
-def checkInvalidCmds(scpiObj):
+def addInvalidCmds(scpiObj):
     _printHeader("Testing to build invalid commands")
     try:
         scpiObj.addCommand(":startswithcolon", readcb=None)
@@ -477,7 +496,7 @@ def checkInvalidCmds(scpiObj):
         return
 
 
-def checkValidCommands(scpiObj):
+def addValidCommands(scpiObj):
     _printHeader("Testing to build valid commands")
     # ---- valid commands section
     currentObj = AttrTest()
@@ -561,7 +580,7 @@ def checkValidCommands(scpiObj):
     # TODO: channels with channels until the attributes
 
 
-def checkCommandExec(scpiObj):
+def checkCommandExecution(scpiObj):
     _printHeader("Testing to command queries")
     print("Launch tests:")
     cmd = "*IDN?"
@@ -582,21 +601,31 @@ def doCheckCommands(scpiObj, baseCmd):
     for subCmd in subCmds:
         for attr in attrs:
             cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
-            print("\tRequest %s of %s (%s):\n\tAnswer: %s"
-                  % (attr.lower(), subCmd.lower(), cmd, scpiObj.input(cmd)))
+            answer = scpiObj.input(cmd)
+            print("\tRequest %s of %s (%s):\n\tAnswer: %r"
+                  % (attr.lower(), subCmd.lower(), cmd, answer))
     _wait()
 
 
-def doCheckMultipleCommands(scpiObj):
+def checkMultipleCommands(scpiObj):
     _printHeader("Requesting more than one attribute per query")
-    for i in range(2, 31):
+    log = []
+    for i in range(2, concatenatedCmds+1):
         lst = []
         for j in range(i):
             lst.append(_buildCommand2Test())
         cmds = "".join("%s;" % x for x in lst)[:-1]
         cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
-        print("\tRequest %d attributes in a query: \n%s\n\tAnswer: %s"
-              % (i, cmdsSplitted, scpiObj.input(cmds)))
+        start_t = _time()
+        answer = scpiObj.input(cmds)
+        nAnswers = len(answer.split(';'))
+        log.append(_time() - start_t)
+        print("\tRequest %d attributes in a single query: \n%s\n\tAnswer: "
+              "%r (%d, %g ms)"% (i, cmdsSplitted, answer, nAnswers,
+                                 log[-1]*1000))
+        if nAnswers != i:
+            raise AssertionError("The answer doesn't have the %d expected "
+                                 "elements" % (i))
         _wait()
 
 
