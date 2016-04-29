@@ -77,8 +77,7 @@ class scpi(_Logger):
        can be called once the object is created by setting the object property
        'remoteAllowed' to True.
     '''
-    # TODO: other incomming channels than network
-    # TODO: %s %r of the object
+    # TODO: other incoming channels than network
     def __init__(self, commandTree=None, specialCommands=None,
                  local=True, port=5025, autoOpen=False, debug=False,
                  services=None):
@@ -361,6 +360,7 @@ class scpi(_Logger):
                             tree[key].write(channelNum, value)
                             return tree[key].read(channelNum)
                         tree[key].write(value)
+                        # TODO: there's a SCPI command to inhibit this answer
                         return tree[key].read()
                     except Exception as e:
                         self._debug("Exception writing %s" % (e))
@@ -423,6 +423,14 @@ class InstrumentIdentification(object):
                                 self.serialNumber, self.firmwareVersion)
 
 
+stepTime = 1
+
+
+def _wait():
+    print("wait...")
+    _sleep(stepTime)
+
+
 def testScpi(debug=False):
     from commands import AttrTest
     _printHeader("Testing scpi main class (version %s)" % (_version()))
@@ -430,8 +438,11 @@ def testScpi(debug=False):
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
         checkIDN(scpiObj, identity)
+        _wait()
         checkInvalidCmds(scpiObj)
+        _wait()
         checkValidCommands(scpiObj)
+        _wait()
         checkCommandExec(scpiObj)
         doCheckMultipleCommands(scpiObj)
 
@@ -441,6 +452,7 @@ def checkIDN(scpiObj, identity):
 
 
 def checkInvalidCmds(scpiObj):
+    _printHeader("Testing to build invalid commands")
     try:
         scpiObj.addCommand(":startswithcolon", readcb=None)
     except NameError as e:
@@ -466,6 +478,7 @@ def checkInvalidCmds(scpiObj):
 
 
 def checkValidCommands(scpiObj):
+    _printHeader("Testing to build valid commands")
     # ---- valid commands section
     currentObj = AttrTest()
     voltageObj = AttrTest()
@@ -544,11 +557,12 @@ def checkValidCommands(scpiObj):
                     default = False
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
+    print("Command tree build: %r" % (scpiObj._commandTree))
     # TODO: channels with channels until the attributes
 
 
 def checkCommandExec(scpiObj):
-    print("Command tree build: %r" % (scpiObj._commandTree))
+    _printHeader("Testing to command queries")
     print("Launch tests:")
     cmd = "*IDN?"
     print("\tInstrument identification (%s):\n\t\t%s"
@@ -570,6 +584,7 @@ def doCheckCommands(scpiObj, baseCmd):
             cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
             print("\tRequest %s of %s (%s):\n\tAnswer: %s"
                   % (attr.lower(), subCmd.lower(), cmd, scpiObj.input(cmd)))
+    _wait()
 
 
 def doCheckMultipleCommands(scpiObj):
@@ -582,6 +597,7 @@ def doCheckMultipleCommands(scpiObj):
         cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
         print("\tRequest %d attributes in a query: \n%s\n\tAnswer: %s"
               % (i, cmdsSplitted, scpiObj.input(cmds)))
+        _wait()
 
 
 def _buildCommand2Test():
