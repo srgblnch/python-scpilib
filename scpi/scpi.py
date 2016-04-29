@@ -24,13 +24,15 @@ __license__ = "GPLv3+"
 import atexit
 try:
     from .commands import Component, BuildComponent, BuildChannel
-    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest, ChannelTest
+    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from .commands import ChannelTest, CHNUMSIZE
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
     from .version import version as _version
 except:
     from commands import Component, BuildComponent, BuildChannel
-    from commands import BuildAttribute, BuildSpecialCmd, AttrTest, ChannelTest
+    from commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from commands import ChannelTest, CHNUMSIZE
     from logger import Logger as _Logger
     from tcpListener import TcpListener
     from version import version as _version
@@ -325,10 +327,10 @@ class scpi(_Logger):
         channelNum = None
         for key in keywords:
             self._debug("processing %s" % key)
-            if key[-2:].isdigit():
-                channelNum = int(key[-2:])
+            if key[-CHNUMSIZE:].isdigit():
+                channelNum = int(key[-CHNUMSIZE:])
                 self._debug("It has been found that this has channels defined")
-                key = key[:-2]
+                key = key[:-CHNUMSIZE]
             try:
                 tree = tree[key]
             except Exception as e:
@@ -370,7 +372,7 @@ try:
     from .logger import printHeader
 except:
     from logger import printHeader
-
+nChannels = 8
 
 class InstrumentIdentification(object):
     def __init__(self, manufacturer, instrument, serialNumber,
@@ -500,7 +502,6 @@ def checkValidCommands(scpiObj):
                     default = False
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
-                print(attrObj)
             else:
                 print("%s hasn't %s" % (subcomponentObj,attrFunc))
                 # In this case, the intermediate objects of the tree are
@@ -509,11 +510,11 @@ def checkValidCommands(scpiObj):
                 #  * Use with very big care this option because the library
                 #  * don't guarantee that all the branches of the tree will
                 #  * have the appropiate leafs.
-    # * 
+    # * Example of how can be added a node with channels in the scpi tree
     chCmd = 'channel'
-    chObj = scpiObj.addChannel(chCmd, 4, scpiObj._commandTree)
-    chCurrentObj = ChannelTest()
-    chVoltageObj = ChannelTest()
+    chObj = scpiObj.addChannel(chCmd, nChannels, scpiObj._commandTree)
+    chCurrentObj = ChannelTest(nChannels)
+    chVoltageObj = ChannelTest(nChannels)
     for (subcomponent, subCmdObj) in [('current', chCurrentObj),
                                       ('voltage', chVoltageObj)]:
         subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
@@ -528,7 +529,6 @@ def checkValidCommands(scpiObj):
                     default = False
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
-                print(attrObj)
     # TODO: channels with channels until the attributes
 
 
@@ -542,7 +542,6 @@ def checkCommandExec(scpiObj):
         msg = "Check %s part of the tree" % (baseCmd)
         print("\n%s\n%s\n%s\n" % ("*"*len(msg), msg, "*"*len(msg)))
         doCheckCommands(scpiObj,baseCmd)
-    nChannels = 4
     for ch in range(1,nChannels+1):
         baseCmd = "CHANnel%s" % (str(ch).zfill(2))
         msg = "Check %s part of the tree" % (baseCmd)

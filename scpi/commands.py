@@ -36,6 +36,7 @@ except:
     from logger import Logger as _Logger
 
 MINIMUMKEYLENGHT = 4
+CHNUMSIZE = 2
 
 
 class DictKey(_Logger, str):
@@ -421,6 +422,9 @@ def BuildSpecialCmd(name, parent, readcb, writecb=None):
 class Channel(Component):
     def __init__(self, howMany=None, *args, **kargs):
         super(Channel, self).__init__(*args, **kargs)
+        if len(str(howMany).zfill(2)) > CHNUMSIZE:
+            raise ValueError("The number of channels can not exceed "
+                             "%d decimal digits" % (CHNUMSIZE))
         self._howMany = howMany
         self._hasChannels = True
 
