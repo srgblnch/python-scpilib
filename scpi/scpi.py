@@ -359,7 +359,7 @@ class scpi(_Logger):
                         # This may require a DataFormat feature to pack the
                         # data in bytes, shorts or longs.
                     except Exception as e:
-                        self._warning("Exception reading %s: %s" % (cmd, e))
+                        self._warning("Exception reading '%s': %s" % (cmd, e))
                         answer = float('NaN')
                 else:
                     try:
@@ -377,7 +377,7 @@ class scpi(_Logger):
                             # TODO: there's a SCPI command to inhibit this read
                             answer = tree[key].read()
                     except Exception as e:
-                        self._warning("Exception writing %s: %s" % (cmd, e))
+                        self._warning("Exception writing '%s': %s" % (cmd, e))
                         answer = float('NaN')
         self._debug("command %s processed in %g ms"
                     % (cmd, (_time()-start_t)*1000))
@@ -470,7 +470,8 @@ def testScpi(debug=False):
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
         for test in [checkIDN, addInvalidCmds, addValidCommands,
-                     checkCommandExecution, checkMultipleCommands]:
+                     checkCommandExecution, checkNonexistingCommands,
+                     checkMultipleCommands]:
             test(scpiObj)
             _afterTestWait()
     _printHeader("All tests passed: everything OK (%g s)" % (_time()-start_t))
@@ -531,6 +532,8 @@ def addValidCommands(scpiObj):
                        writecb=voltageObj.lowerLimit)
     scpiObj.addCommand('source:voltage:value', readcb=voltageObj.readTest,
                        default=True)
+    scpiObj.addCommand('source:voltage:exception',
+                       readcb=voltageObj.exceptionTest)
     # * They can be also created in an iterative way
     baseCmdName = 'basicloop'
     for (subCmdName, subCmdObj) in [('current', currentObj),
@@ -612,6 +615,42 @@ def checkCommandExecution(scpiObj):
         _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj, baseCmd)
     _printFooter("Command queries test PASSED")
+
+
+def checkNonexistingCommands(scpiObj):
+    _printHeader("Testing to query commands that doesn't exist")
+    baseCmd =  _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
+    subCmd =  _randomchoice(['CURRent', 'VOLTage'])
+    attr =  _randomchoice(['UPPEr', 'LOWEr', 'VALUe'])
+    fake = "FAKE"
+    # * first level doesn't exist
+    start_t = _time()
+    cmd = "%s:%s:%s?" % (fake, subCmd, attr)
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
+    # * intermediate level doesn't exist
+    cmd = "%s:%s:%s?" % (baseCmd, fake, attr)
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
+    # * Attribute level doesn't exist
+    cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
+    # * Attribute that doesn't respond
+    cmd = 'source:voltage:exception'
+    answer = scpiObj.input(cmd)
+    print("\tRequest existing command but that it raises an exception %s"
+          "\n\tAnswer: %r (%g ms)" % (cmd, answer, (_time()-start_t)*1000))
+    # * Unexisting Channel
+    baseCmd = "CHANnel%s" % (str(nChannels+3).zfill(2))
+    cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
+    _printFooter("Non-existing commands test PASSED")
 
 
 def doCheckCommands(scpiObj, baseCmd):

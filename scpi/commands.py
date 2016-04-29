@@ -506,6 +506,9 @@ class AttrTest:
             return self._lowerLimit
         self._lowerLimit = float(value)
 
+    def exceptionTest(self):
+        raise Exception("controlled exception")
+
 
 def testAttr(output=True):
     if output:
