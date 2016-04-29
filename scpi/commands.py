@@ -32,8 +32,10 @@ __license__ = "GPLv3+"
 
 try:
     from .logger import Logger as _Logger
+    from .version import version as _version
 except:
     from logger import Logger as _Logger
+    from version import version as _version
 
 MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
@@ -538,7 +540,7 @@ def testAttr(output=True):
 
 
 def idn():
-    return "ALBA,test,0,0.0.0-0"
+    return "ALBA,test,0,%s" % (_version())
 
 
 def testSpeciaCommands(output=True):

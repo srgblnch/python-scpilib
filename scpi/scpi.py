@@ -446,13 +446,13 @@ class InstrumentIdentification(object):
 stepTime = .1
 concatenatedCmds = 50
 
-waitMsg = "wait...\r"
+waitMsg = "wait..."
 
 def _wait(t):
     _stdout.write(waitMsg)
     _stdout.flush()
     _sleep(t)
-    _stdout.write(" "*len(waitMsg)+"\r")
+    _stdout.write("\r"+" "*len(waitMsg)+"\r")
     _stdout.flush()
 
 
@@ -479,7 +479,7 @@ def testScpi(debug=False):
 
 def checkIDN(scpiObj):
     _printHeader("Test instrument identification")
-    identity = InstrumentIdentification('ALBA', 'test', 0, '0.0.0-0')
+    identity = InstrumentIdentification('ALBA', 'test', 0, __version__())
     scpiObj.addSpecialCommand('IDN', identity.idn)
     cmd = "*idn?"
     answer = scpiObj.input(cmd)
@@ -603,8 +603,8 @@ def checkCommandExecution(scpiObj):
     _printHeader("Testing to command queries")
     print("Launch tests:")
     cmd = "*IDN?"
-    print("\tInstrument identification (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
+    answer = scpiObj.input(cmd)
+    print("\tInstrument identification (%s)\n\tAnswer: %s" % (cmd, answer))
     for baseCmd in ['SOURce', 'BASIcloop', 'ITERative']:
         _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj, baseCmd)
@@ -622,7 +622,7 @@ def doCheckCommands(scpiObj, baseCmd):
         for attr in attrs:
             cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
             answer = scpiObj.input(cmd)
-            print("\tRequest %s of %s (%s):\n\tAnswer: %r"
+            print("\tRequest %s of %s (%s)\n\tAnswer: %r"
                   % (attr.lower(), subCmd.lower(), cmd, answer))
     _interTestWait()
 
@@ -640,8 +640,8 @@ def checkMultipleCommands(scpiObj):
         answer = scpiObj.input(cmds)
         nAnswers = len(answer.split(';'))
         log.append(_time() - start_t)
-        print("\tRequest %d attributes in a single query: \n%s\n\tAnswer: "
-              "%r (%d, %g ms)"% (i, cmdsSplitted, answer, nAnswers,
+        print("\tRequest %d attributes in a single query: \n%s\tAnswer: "
+              "%r (%d, %g ms)\n"% (i, cmdsSplitted, answer, nAnswers,
                                  log[-1]*1000))
         if nAnswers != i:
             raise AssertionError("The answer doesn't have the %d expected "
