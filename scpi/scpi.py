@@ -324,7 +324,7 @@ class scpi(_Logger):
                 result = self._specialCmds[key].write()
                 break
         self._debug("special command %s processed in %g ms"
-                   % (cmd, (_time()-start_t)*1000))
+                    % (cmd, (_time()-start_t)*1000))
         if result is None:
             self._warning("Command (%s) not found..." % (cmd))
             return float('NaN')
@@ -380,7 +380,7 @@ class scpi(_Logger):
                         self._warning("Exception writing %s: %s" % (cmd, e))
                         answer = float('NaN')
         self._debug("command %s processed in %g ms"
-                   % (cmd, (_time()-start_t)*1000))
+                    % (cmd, (_time()-start_t)*1000))
         return answer
 
 
@@ -445,8 +445,8 @@ class InstrumentIdentification(object):
 
 stepTime = .1
 concatenatedCmds = 50
-
 waitMsg = "wait..."
+
 
 def _wait(t):
     _stdout.write(waitMsg)
@@ -467,7 +467,6 @@ def _afterTestWait():
 def testScpi(debug=False):
     start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
-    
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
         for test in [checkIDN, addInvalidCmds, addValidCommands,
@@ -641,8 +640,8 @@ def checkMultipleCommands(scpiObj):
         nAnswers = len(answer.split(';'))
         log.append(_time() - start_t)
         print("\tRequest %d attributes in a single query: \n%s\tAnswer: "
-              "%r (%d, %g ms)\n"% (i, cmdsSplitted, answer, nAnswers,
-                                 log[-1]*1000))
+              "%r (%d, %g ms)\n" % (i, cmdsSplitted, answer, nAnswers,
+                                    log[-1]*1000))
         if nAnswers != i:
             raise AssertionError("The answer doesn't have the %d expected "
                                  "elements" % (i))

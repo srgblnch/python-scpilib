@@ -84,6 +84,7 @@ class Logger(object):
 
 # for testing section
 
+
 def printHeader(msg):
     print("\n"+"="*len(msg)+"\n"+msg+"\n"+"="*len(msg)+"\n")
 
