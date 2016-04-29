@@ -394,6 +394,7 @@ except:
     from commands import nChannels
 from random import choice as _randomchoice
 from random import randint as _randint
+from sys import stdout as _stdout
 
 
 class InstrumentIdentification(object):
@@ -445,14 +446,22 @@ class InstrumentIdentification(object):
 stepTime = .1
 concatenatedCmds = 50
 
+waitMsg = "wait...\r"
+
+def _wait(t):
+    _stdout.write(waitMsg)
+    _stdout.flush()
+    _sleep(t)
+    _stdout.write(" "*len(waitMsg)+"\r")
+    _stdout.flush()
+
 
 def _interTestWait():
-    print("wait...")
-    _sleep(stepTime)
+    _wait(stepTime)
+
 
 def _afterTestWait():
-    print("wait...")
-    _sleep(stepTime*10)
+    _wait(stepTime*10)
 
 
 def testScpi(debug=False):
