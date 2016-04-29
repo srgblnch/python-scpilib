@@ -439,6 +439,7 @@ def testScpi(debug=False):
 def checkIDN(scpiObj, identity):
     scpiObj.addSpecialCommand('IDN', identity.idn)
 
+
 def checkInvalidCmds(scpiObj):
     try:
         scpiObj.addCommand(":startswithcolon", readcb=None)
@@ -503,7 +504,7 @@ def checkValidCommands(scpiObj):
     itCmd = 'iterative'
     itObj = scpiObj.addComponent(itCmd, scpiObj._commandTree)
     for (subcomponent, subCmdObj) in [('current', currentObj),
-                                       ('voltage', voltageObj)]:
+                                      ('voltage', voltageObj)]:
         subcomponentObj = scpiObj.addComponent(subcomponent, itObj)
         for (attrName, attrFunc) in [('upper', 'upperLimit'),
                                      ('lower', 'lowerLimit'),
@@ -517,7 +518,7 @@ def checkValidCommands(scpiObj):
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
             else:
-                print("%s hasn't %s" % (subcomponentObj,attrFunc))
+                print("%s hasn't %s" % (subcomponentObj, attrFunc))
                 # In this case, the intermediate objects of the tree are
                 # build and it is in the innier loop where they have the
                 # attributes created.
@@ -554,11 +555,11 @@ def checkCommandExec(scpiObj):
           % (cmd, scpiObj.input(cmd)))
     for baseCmd in ['SOURce', 'BASIcloop', 'ITERative']:
         _printHeader("Check %s part of the tree" % (baseCmd))
-        doCheckCommands(scpiObj,baseCmd)
-    for ch in range(1,nChannels+1):
+        doCheckCommands(scpiObj, baseCmd)
+    for ch in range(1, nChannels+1):
         baseCmd = "CHANnel%s" % (str(ch).zfill(2))
         _printHeader("Check %s part of the tree" % (baseCmd))
-        doCheckCommands(scpiObj,baseCmd)
+        doCheckCommands(scpiObj, baseCmd)
 
 
 def doCheckCommands(scpiObj, baseCmd):
@@ -570,17 +571,19 @@ def doCheckCommands(scpiObj, baseCmd):
             print("\tRequest %s of %s (%s):\n\tAnswer: %s"
                   % (attr.lower(), subCmd.lower(), cmd, scpiObj.input(cmd)))
 
+
 def doCheckMultipleCommands(scpiObj):
     _printHeader("Requesting more than one attribute per query")
-    for i in range(2,31):
+    for i in range(2, 31):
         lst = []
         for j in range(i):
             lst.append(_buildCommand2Test())
         cmds = "".join("%s;" % x for x in lst)[:-1]
         cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
         print("\tRequest %d attributes in a query: \n%s\n\tAnswer: %s"
-               % (i, cmdsSplitted, scpiObj.input(cmds)))
-        
+              % (i, cmdsSplitted, scpiObj.input(cmds)))
+
+
 def _buildCommand2Test():
     baseCmds = ['SOURce', 'BASIcloop', 'ITERative', 'CHANnel']
     subCmds = ['CURRent', 'VOLTage']

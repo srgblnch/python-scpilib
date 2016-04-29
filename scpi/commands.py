@@ -156,7 +156,7 @@ class Attribute(DictKey):
             if parent.hasChannels:
                 self._hasChannels = True
                 self._debug("%s: Channels found for %s component"
-                           % (self.name, parent.name))
+                            % (self.name, parent.name))
                 return
             parent = parent.parent  # next
         self._debug("%s: No channels found" % (self.name))
@@ -292,7 +292,7 @@ class Component(_Logger, dict):
             if parent.hasChannels:
                 self._hasChannels = True
                 self._debug("%s: Channels found for %s component"
-                           % (self.name, parent.name))
+                            % (self.name, parent.name))
                 return
             parent = parent.parent  # next
         self._debug("%s: No channels found" % (self.name))
