@@ -34,7 +34,8 @@ scpiObj = scpi.scpi()
 ```
 
 With no paramenter configuration, the object assumes the communication will be
-made by network and *only* listen the localhost (in ipv4 and ipv6).
+made by network and *only* listen the localhost (in ipv4 and ipv6). See the 
+help for further information.
 
 Also, a object created this way doesn't have any command to respond. They can 
 be build before and passed to the constructor, or use a command to add:
@@ -46,16 +47,17 @@ scpiObj.addCommand('source:current:upper',
                    writecb=currentObj.upperLimit)
 ```
 
-The *AttrTest()* object can be found in the *commands.py* file and it's use 
-in the current approach of tests. What the previous code generates are:
+The *AttrTest()* object can be found in the *commands.py* file and it's used 
+in the test approach. What the previous code generates are:
 
-* Two nested components, 'source' as root in the scpi command tree,
+* 'source' to the root in the scpi command tree,
 * 'current' as an intermediate node, and 
 * 'upper' a leaf that will be readable and writable.
 
 With this sample code, out object shall be listening on the (loopback) network 
 and sending the string 'SOUR:CURR:UPPE?', we will receive back an string with 
 the representation of the execution of 'currentObj.upperLimit()'.
+
 
 ### Special commands
 
@@ -84,16 +86,72 @@ scpiObj.addSpecialCommand('IDN',identity.idn)
 
 With this one have the most very basic functional scpi listener.
 
+## Channels in the instrument
+
+It has been shown how to setup a minimal tree of commands, but often this 
+kind of instruments have components that are channels. Like an oscilloscope, 
+an electrometer, or any other that one can develope.
+
+Those commands have the peculiarity that their key work ends with a number
+(specifically 2 decimal digit number string starting with a 0 if need be), at 
+the same time their left part of the keyword has this variable lenght feature.
+
+There has been implemented one way to add this channel feature, and only one
+channel element can be set in the branch of the tree.
+
+```python
+nChannels = 8
+chCmd = 'channel'
+chObj = scpiObj.addChannel(chCmd, nChannels, scpiObj._commandTree)
+chCurrentObj = ChannelTest(nChannels)
+chVoltageObj = ChannelTest(nChannels)
+for (subcomponent, subCmdObj) in [('current', chCurrentObj),
+                                  ('voltage', chVoltageObj)]:
+    subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
+    for (attrName, attrFunc) in [('upper', 'upperLimit'),
+                                 ('lower', 'lowerLimit'),
+                                 ('value', 'readTest')]:
+        if hasattr(subCmdObj, attrFunc):
+            cbFunc = getattr(subCmdObj, attrFunc)
+            if attrName == 'value':
+                default = True
+            else:
+                default = False
+            attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                           cbFunc, default=default)
+```
+
+With this iterative way, the scpi tree will have a component near the root that
+will accept channel differentiation in the readings and writtings. The tree
+representation will be like:
+
+```
+CHANnelNN:
+        CURRent: (default 'value') 
+                UPPEr
+                LOWEr
+                VALUe
+        VOLTage: (default 'value') 
+                UPPEr
+                LOWEr
+                VALUe
+```
+
+where the NN following the 'channel' key will be a string number between '01'
+and '08' (supporting up to '99' if it is setup this way).
+
+Then the command 'CHAN01:CURR:VALU?' will call a different read method than a
+command 'CHAN05:CURR:VALU?'.
+
 ## ToDo List
 
-* Components with indexes: channel like components with a numeric tag to 
-distinguish between more than one 'signal' source.
+* array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
+
+* List the minimum special commands to be setup for an instrument.
 
 * Enumerate types to the command setters.
 
 * More listen channels than network
-
-* array-like answers
 
 ## Other ideas to study
 
