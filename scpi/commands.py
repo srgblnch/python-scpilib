@@ -16,7 +16,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
+__author__ = "Sergi Blanch-Torne"
 __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
@@ -170,8 +170,13 @@ class Attribute(DictKey):
 
     def read(self, ch=None):
         if self.hasChannels and ch is not None:
-            return self._read_cb(ch)
-        return self._read_cb()
+            retValue = self._read_cb(ch)
+            self._debug("Attribute %s read from channel %d: %s"
+                        % (self.name, ch, retValue))
+        else:
+            retValue = self._read_cb()
+            self._debug("Attribute %s read: %s" % (self.name, retValue))
+        return retValue
 
     @property
     def write_cb(self):
@@ -183,8 +188,14 @@ class Attribute(DictKey):
 
     def write(self, ch=None, value=None):
         if self.hasChannels and ch is not None:
-            return self._read_cb(ch, value)
-        self._write_cb(value)
+            retValue = self._write_cb(ch, value)
+            self._debug("Attribute %s write %s in channel %d: %s"
+                        % (self.name, value, ch, retValue))
+        else:
+            self._write_cb(value)
+            self._debug("Attribute %s write %s: %s"
+                        % (self.name, value, retValue))
+        return retValue
 
 
 def BuildAttribute(name, parent, readcb=None, writecb=None, default=False):
@@ -231,7 +242,7 @@ class Component(_Logger, dict):
                 repr = "".join("%s\n%s%r" % (repr, indentation, key))
             else:
                 if item.default is not None:
-                    isDefault = " (default %s) " % item.default
+                    isDefault = " (default %r) " % item.default
                 else:
                     isDefault = ""
                 if isinstance(item, Channel):
@@ -539,19 +550,20 @@ class ChannelTest:
     def __init__(self, channels=4, upperLimit=100, lowerLimit=-100):
         self._upperLimit = [upperLimit]*channels
         self._lowerLimit = [lowerLimit]*channels
+        # channels starts from 1 and list indexes from 0
 
     def readTest(self, ch):
-        return randint(self._lowerLimit[ch], self._upperLimit[ch])
+        return randint(self._lowerLimit[ch-1], self._upperLimit[ch-1])
 
     def upperLimit(self, ch, value=None):
         if value is None:
-            return self._upperLimit[ch]
-        self._upperLimit[ch] = float(value)
+            return self._upperLimit[ch-1]
+        self._upperLimit[ch-1] = float(value)
 
     def lowerLimit(self, ch, value=None):
         if value is None:
-            return self._lowerLimit[ch]
-        self._lowerLimit[ch] = float(value)
+            return self._lowerLimit[ch-1]
+        self._lowerLimit[ch-1] = float(value)
 
 
 def testChannels(output=True):

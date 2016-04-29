@@ -16,7 +16,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
+__author__ = "Sergi Blanch-Torne"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
@@ -24,13 +24,13 @@ __license__ = "GPLv3+"
 import atexit
 try:
     from .commands import Component, BuildComponent, BuildChannel
-    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest, ChannelTest
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
     from .version import version as _version
 except:
     from commands import Component, BuildComponent, BuildChannel
-    from commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from commands import BuildAttribute, BuildSpecialCmd, AttrTest, ChannelTest
     from logger import Logger as _Logger
     from tcpListener import TcpListener
     from version import version as _version
@@ -219,8 +219,14 @@ class scpi(_Logger):
         return BuildChannel(name, howMany, parent)
 
     def addAttribute(self, name, parent, readcb, writecb=None, default=False):
+        if not hasattr(parent, 'keys'):
+            raise TypeError("For %s, parent doesn't accept attributes"
+                            % (name))
+        if name in parent.keys():
+            self._debug("attribute '%s' already exist" % (name))
+            return
         self._debug("Adding attribute '%s' (%s)" % (name, parent))
-        BuildAttribute(name, parent, readcb, writecb, default)
+        return BuildAttribute(name, parent, readcb, writecb, default)
 
     def addCommand(self, FullName, readcb, writecb=None, default=False):
         '''
@@ -316,20 +322,30 @@ class scpi(_Logger):
     def _process_normal_command(self, cmd):
         keywords = cmd.split(':')
         tree = self._commandTree
+        channelNum = None
         for key in keywords:
             self._debug("processing %s" % key)
+            if key[-2:].isdigit():
+                channelNum = int(key[-2:])
+                self._debug("It has been found that this has channels defined")
+                key = key[:-2]
             try:
                 tree = tree[key]
-            except:
+            except Exception as e:
+                self._debug("Leaf of the tree %s" % (key))
                 if key.endswith('?'):
-                    self._debug("last keyword: %s" % (key))
+                    self._debug("last keyword: %s" % (key[:-1]))
                     try:
+                        if channelNum:
+                            self._debug("do read with channel")
+                            return tree[key[:-1]].read(channelNum)
                         return tree[key[:-1]].read()
                         # TODO: support list readings and its conversion to
                         #      '#NMMMMMMMMM...' stream
                         # This may require a DataFormat feature to pack the
                         # data in bytes, shorts or longs.
-                    except:
+                    except Exception as e:
+                        self._debug("Exception reading %s" % (e))
                         return float('NaN')
                 else:
                     try:
@@ -338,9 +354,14 @@ class scpi(_Logger):
                         # take first and last
                         key = bar[0]
                         value = bar[-1]
+                        if channelNum:
+                            self._debug("do write with channel")
+                            tree[key].write(channelNum, value)
+                            return tree[key].read(channelNum)
                         tree[key].write(value)
                         return tree[key].read()
-                    except:
+                    except Exception as e:
+                        self._debug("Exception writing %s" % (e))
                         return float('NaN')
 
 
@@ -406,7 +427,6 @@ def testScpi():
         checkIDN(scpiObj, identity)
         checkValidCommands(scpiObj)
         checkCommandExec(scpiObj)
-        checkChannels(scpiObj)
 
 
 def checkIDN(scpiObj, identity):
@@ -450,7 +470,7 @@ def checkValidCommands(scpiObj):
     for (subCmdName, subCmdObj) in [('current', currentObj),
                                     ('voltage', voltageObj)]:
         for (attrName, attrFunc) in [('upper', 'upperLimit'),
-                                     ('lower', 'LowerLimit'),
+                                     ('lower', 'lowerLimit'),
                                      ('value', 'readTest')]:
             if hasattr(subCmdObj, attrFunc):
                 cbFunc = getattr(subCmdObj, attrFunc)
@@ -466,87 +486,78 @@ def checkValidCommands(scpiObj):
     # * Another alternative to create the tree in an iterative way would be
     itCmd = 'iterative'
     itObj = scpiObj.addComponent(itCmd, scpiObj._commandTree)
-    for subcomponent in ['current', 'voltage']:
+    for (subcomponent, subCmdObj) in [('current', currentObj),
+                                       ('voltage', voltageObj)]:
         subcomponentObj = scpiObj.addComponent(subcomponent, itObj)
         for (attrName, attrFunc) in [('upper', 'upperLimit'),
-                                     ('lower', 'LowerLimit'),
+                                     ('lower', 'lowerLimit'),
                                      ('value', 'readTest')]:
-            if hasattr(subcomponentObj, attrFunc):
-                cbFunc = getattr(subcomponentObj, attrFunc)
+            if hasattr(subCmdObj, attrFunc):
+                cbFunc = getattr(subCmdObj, attrFunc)
                 if attrName == 'value':
                     default = True
                 else:
                     default = False
-                scpiObj.addAttribute(attrName, subcomponentObj, cbFunc,
-                                     default=default)
+                attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                               cbFunc, default=default)
+                print(attrObj)
+            else:
+                print("%s hasn't %s" % (subcomponentObj,attrFunc))
                 # In this case, the intermediate objects of the tree are
                 # build and it is in the innier loop where they have the
                 # attributes created.
                 #  * Use with very big care this option because the library
                 #  * don't guarantee that all the branches of the tree will
                 #  * have the appropiate leafs.
-
-
-def checkCommandExec(scpiObj):
-    print("Command tree build: %r" % (scpiObj._commandTree))
-    print("Launch test:")
-    cmd = "*IDN?"
-    print("\tInstrument identification (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:UPPER?"
-    print("\tRequested upper current limit (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOU:CURRRI:UP?"
-    print("\tRequested something that cannot be requested (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER?"
-    print("\tRequested lower current limit (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER -50"
-    print("\tSet the current lower limit to -50 (%s), "
-          "and the answer is:\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWER?"
-    print("\tRequest again the current lower limit (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT:LOWER?"
-    print("\tRequest lower voltage limit (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT:VALU?"
-    print("\tRequest voltage value (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:VOLT?"
-    print("\tRequest voltage using default (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR?;SOUR:VOLT?"
-    print("\tConcatenate 2 commands (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR?;:VOLT?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    cmd = "SOUR:CURR:LOWE?;:UPPE?"
-    print("\tConcatenate and nested commands (%s):\n\t\t%s"
-          % (cmd, scpiObj.input(cmd)))
-    # end
-
-
-def checkChannels(scpiObj):
+    # * 
     chCmd = 'channel'
     chObj = scpiObj.addChannel(chCmd, 4, scpiObj._commandTree)
-    for subcomponent in ['current', 'voltage']:
+    chCurrentObj = ChannelTest()
+    chVoltageObj = ChannelTest()
+    for (subcomponent, subCmdObj) in [('current', chCurrentObj),
+                                      ('voltage', chVoltageObj)]:
         subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
         for (attrName, attrFunc) in [('upper', 'upperLimit'),
-                                     ('lower', 'LowerLimit'),
+                                     ('lower', 'lowerLimit'),
                                      ('value', 'readTest')]:
-            if hasattr(subcomponentObj, attrFunc):
-                cbFunc = getattr(subcomponentObj, attrFunc)
+            if hasattr(subCmdObj, attrFunc):
+                cbFunc = getattr(subCmdObj, attrFunc)
                 if attrName == 'value':
                     default = True
                 else:
                     default = False
-                scpiObj.addAttribute(attrName, subcomponentObj, cbFunc,
-                                     default=default)
+                attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                               cbFunc, default=default)
+                print(attrObj)
     # TODO: channels with channels until the attributes
+
+
+def checkCommandExec(scpiObj):
+    print("Command tree build: %r" % (scpiObj._commandTree))
+    print("Launch tests:")
+    cmd = "*IDN?"
+    print("\tInstrument identification (%s):\n\t\t%s"
+          % (cmd, scpiObj.input(cmd)))
+    for baseCmd in ['SOURce', 'BASIcloop', 'ITERative']:
+        msg = "Check %s part of the tree" % (baseCmd)
+        print("\n%s\n%s\n%s\n" % ("*"*len(msg), msg, "*"*len(msg)))
+        doCheckCommands(scpiObj,baseCmd)
+    nChannels = 4
+    for ch in range(1,nChannels+1):
+        baseCmd = "CHANnel%s" % (str(ch).zfill(2))
+        msg = "Check %s part of the tree" % (baseCmd)
+        print("\n%s\n%s\n%s\n" % ("*"*len(msg), msg, "*"*len(msg)))
+        doCheckCommands(scpiObj,baseCmd)
+
+
+def doCheckCommands(scpiObj, baseCmd):
+    subCmds = ['CURRent', 'VOLTage']
+    attrs = ['UPPEr', 'LOWEr', 'VALUe']
+    for subCmd in subCmds:
+        for attr in attrs:
+            cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
+            print("\tRequest %s of %s (%s):\n\t\t%s"
+                  % (attr.lower(), subCmd.lower(), cmd, scpiObj.input(cmd)))
 
 
 def main():

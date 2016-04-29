@@ -16,7 +16,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
+__author__ = "Sergi Blanch-Torne"
 __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
