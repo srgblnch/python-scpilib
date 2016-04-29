@@ -51,6 +51,7 @@ class TcpListener(_Logger):
         self._joinEvent = _threading.Event()
         self._joinEvent.clear()
         self._connectionThreads = {}
+        self._withipv6suport = ipv6
         self.open()
         self._debug("Listener thread prepared")
 
@@ -72,11 +73,11 @@ class TcpListener(_Logger):
             self._debug("Deleting TcpListener")
             self._joinEvent.set()
         self._shutdownSocket(self._scpi_ipv4)
-        if hasattr(self, '_scpi_ipv6'):
+        if self._withipv6suport and hasattr(self, '_scpi_ipv6'):
             self._shutdownSocket(self._scpi_ipv6)
         if self._isListeningIpv4():
             self._scpi_ipv4 = None
-        if self._isListeningIpv6():
+        if self._withipv6suport and self._isListeningIpv6():
             self._scpi_ipv6 = None
         _gccollect()
         while self.isAlive():
@@ -113,20 +114,23 @@ class TcpListener(_Logger):
                                                       self._host_ipv4,))
 
     def buildIpv6Socket(self):
-        if not _socket.has_ipv6:
-            raise AssertionError("IPv6 not supported by the platform")
-        if self._local:
-            self._host_ipv6 = '::1'
-        else:
-            self._host_ipv6 = '::'
-        self._scpi_ipv6 = _socket.socket(_socket.AF_INET6, _socket.SOCK_STREAM)
-        self._scpi_ipv6.setsockopt(_socket.IPPROTO_IPV6, _socket.IPV6_V6ONLY,
-                                   True)
-        self._scpi_ipv6.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
-        self._listener_ipv6 = _threading.Thread(name="Listener6",
-                                                target=self.__listener,
-                                                args=(self._scpi_ipv6,
-                                                      self._host_ipv6,))
+        if self._withipv6suport:
+            if not _socket.has_ipv6:
+                raise AssertionError("IPv6 not supported by the platform")
+            if self._local:
+                self._host_ipv6 = '::1'
+            else:
+                self._host_ipv6 = '::'
+            self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,
+                                             _socket.SOCK_STREAM)
+            self._scpi_ipv6.setsockopt(_socket.IPPROTO_IPV6,
+                                       _socket.IPV6_V6ONLY, True)
+            self._scpi_ipv6.setsockopt(_socket.SOL_SOCKET,
+                                       _socket.SO_REUSEADDR, 1)
+            self._listener_ipv6 = _threading.Thread(name="Listener6",
+                                                    target=self.__listener,
+                                                    args=(self._scpi_ipv6,
+                                                          self._host_ipv6,))
 
     def _shutdownSocket(self, sock):
         try:
