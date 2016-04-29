@@ -155,11 +155,11 @@ class Attribute(DictKey):
         while parent is not None:
             if parent.hasChannels:
                 self._hasChannels = True
-                self._info("%s: Channels found for %s component"
+                self._debug("%s: Channels found for %s component"
                            % (self.name, parent.name))
                 return
             parent = parent.parent  # next
-        self._info("%s: No channels found" % (self.name))
+        self._debug("%s: No channels found" % (self.name))
 
     @property
     def read_cb(self):
@@ -283,7 +283,7 @@ class Component(_Logger, dict):
     @property
     def isChanneled(self):
         itis = self._howMany is not None
-        self._info("isChanneled = %s" % itis)
+        self._debug("isChanneled = %s" % itis)
         return itis
 
     def checkChannels(self):
@@ -291,11 +291,11 @@ class Component(_Logger, dict):
         while parent is not None:
             if parent.hasChannels:
                 self._hasChannels = True
-                self._info("%s: Channels found for %s component"
+                self._debug("%s: Channels found for %s component"
                            % (self.name, parent.name))
                 return
             parent = parent.parent  # next
-        self._info("%s: No channels found" % (self.name))
+        self._debug("%s: No channels found" % (self.name))
 
     def __getitem__(self, key):
         '''

@@ -369,10 +369,13 @@ class scpi(_Logger):
 
 # ---- TEST AREA
 try:
-    from .logger import printHeader
+    from .logger import printHeader as _printHeader
 except:
-    from logger import printHeader
+    from logger import printHeader as _printHeader
 nChannels = 8
+from random import choice as _randomchoice
+from random import randint as _randint
+
 
 class InstrumentIdentification(object):
     def __init__(self, manufacturer, instrument, serialNumber,
@@ -420,20 +423,23 @@ class InstrumentIdentification(object):
                                 self.serialNumber, self.firmwareVersion)
 
 
-def testScpi():
+def testScpi(debug=False):
     from commands import AttrTest
-    printHeader("Testing scpi main class (version %s)" % (_version()))
+    _printHeader("Testing scpi main class (version %s)" % (_version()))
     identity = InstrumentIdentification('ALBA', 'test', 0, '0.0')
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
-    with scpi(local=True, debug=True) as scpiObj:
+    with scpi(local=True, debug=debug) as scpiObj:
         checkIDN(scpiObj, identity)
+        checkInvalidCmds(scpiObj)
         checkValidCommands(scpiObj)
         checkCommandExec(scpiObj)
+        doCheckMultipleCommands(scpiObj)
 
 
 def checkIDN(scpiObj, identity):
     scpiObj.addSpecialCommand('IDN', identity.idn)
-    # ---- invalid commands section
+
+def checkInvalidCmds(scpiObj):
     try:
         scpiObj.addCommand(":startswithcolon", readcb=None)
     except NameError as e:
@@ -445,6 +451,14 @@ def checkIDN(scpiObj, identity):
         scpiObj.addCommand("double::colons", readcb=None)
     except NameError as e:
         print("\tDouble colon name test passed")
+    except Exception as e:
+        print("\tUnexpected kind of exception!")
+        return
+    try:
+        scpiObj.addCommand("nestedSpecial:*special", readcb=None)
+    except NameError as e:
+        scpiObj._commandTree.pop('nestedSpecial')
+        print("\tNested special command test passed")
     except Exception as e:
         print("\tUnexpected kind of exception!")
         return
@@ -539,13 +553,11 @@ def checkCommandExec(scpiObj):
     print("\tInstrument identification (%s):\n\t\t%s"
           % (cmd, scpiObj.input(cmd)))
     for baseCmd in ['SOURce', 'BASIcloop', 'ITERative']:
-        msg = "Check %s part of the tree" % (baseCmd)
-        print("\n%s\n%s\n%s\n" % ("*"*len(msg), msg, "*"*len(msg)))
+        _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj,baseCmd)
     for ch in range(1,nChannels+1):
         baseCmd = "CHANnel%s" % (str(ch).zfill(2))
-        msg = "Check %s part of the tree" % (baseCmd)
-        print("\n%s\n%s\n%s\n" % ("*"*len(msg), msg, "*"*len(msg)))
+        _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj,baseCmd)
 
 
@@ -555,8 +567,30 @@ def doCheckCommands(scpiObj, baseCmd):
     for subCmd in subCmds:
         for attr in attrs:
             cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
-            print("\tRequest %s of %s (%s):\n\t\t%s"
+            print("\tRequest %s of %s (%s):\n\tAnswer: %s"
                   % (attr.lower(), subCmd.lower(), cmd, scpiObj.input(cmd)))
+
+def doCheckMultipleCommands(scpiObj):
+    _printHeader("Requesting more than one attribute per query")
+    for i in range(2,31):
+        lst = []
+        for j in range(i):
+            lst.append(_buildCommand2Test())
+        cmds = "".join("%s;" % x for x in lst)[:-1]
+        cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
+        print("\tRequest %d attributes in a query: \n%s\n\tAnswer: %s"
+               % (i, cmdsSplitted, scpiObj.input(cmds)))
+        
+def _buildCommand2Test():
+    baseCmds = ['SOURce', 'BASIcloop', 'ITERative', 'CHANnel']
+    subCmds = ['CURRent', 'VOLTage']
+    attrs = ['UPPEr', 'LOWEr', 'VALUe']
+    baseCmd = _randomchoice(baseCmds)
+    if baseCmd in ['CHANnel']:
+        baseCmd = "%s%s" % (baseCmd, str(_randint(1, nChannels)).zfill(2))
+    subCmd = _randomchoice(subCmds)
+    attr = _randomchoice(attrs)
+    return "%s:%s:%s?" % (baseCmd, subCmd, attr)
 
 
 def main():
