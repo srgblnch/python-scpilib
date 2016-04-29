@@ -82,7 +82,11 @@ class Logger(object):
         if self._debugFlag:
             self._print(msg, self._type[_logger_DEBUG])
 
+# for testing section
 
 def printHeader(msg):
-    # for testing section
     print("\n"+"="*len(msg)+"\n"+msg+"\n"+"="*len(msg)+"\n")
+
+
+def printFooter(msg):
+    print("\n*** %s ***\n" % (msg))

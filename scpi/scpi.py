@@ -86,8 +86,8 @@ class scpi(_Logger):
         self._name = "scpi"
         self._commandTree = commandTree or Component()
         self._specialCmds = specialCommands or {}
-        self._info("Special commands: %r" % (specialCommands))
-        self._info("Given commands: %r" % (self._commandTree))
+        self._debug("Special commands: %r" % (specialCommands))
+        self._debug("Given commands: %r" % (self._commandTree))
         self._local = local
         self._port = port
         self._services = {}
@@ -387,9 +387,11 @@ class scpi(_Logger):
 # ---- TEST AREA
 try:
     from .logger import printHeader as _printHeader
+    from .logger import printFooter as _printFooter
 except:
     from logger import printHeader as _printHeader
-nChannels = 8
+    from logger import printFooter as _printFooter
+    from commands import nChannels
 from random import choice as _randomchoice
 from random import randint as _randint
 
@@ -444,30 +446,36 @@ stepTime = .1
 concatenatedCmds = 50
 
 
-def _wait():
+def _interTestWait():
     print("wait...")
     _sleep(stepTime)
+
+def _afterTestWait():
+    print("wait...")
+    _sleep(stepTime*10)
 
 
 def testScpi(debug=False):
     start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
-    identity = InstrumentIdentification('ALBA', 'test', 0, '0.0')
+    
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
-        checkIDN(scpiObj, identity)
-        _wait()
-        addInvalidCmds(scpiObj)
-        _wait()
-        addValidCommands(scpiObj)
-        _wait()
-        checkCommandExecution(scpiObj)
-        checkMultipleCommands(scpiObj)
-    _printHeader("Tests done: everything OK (%g s)" % (_time()-start_t))
+        for test in [checkIDN, addInvalidCmds, addValidCommands,
+                     checkCommandExecution, checkMultipleCommands]:
+            test(scpiObj)
+            _afterTestWait()
+    _printHeader("All tests passed: everything OK (%g s)" % (_time()-start_t))
 
 
-def checkIDN(scpiObj, identity):
+def checkIDN(scpiObj):
+    _printHeader("Test instrument identification")
+    identity = InstrumentIdentification('ALBA', 'test', 0, '0.0.0-0')
     scpiObj.addSpecialCommand('IDN', identity.idn)
+    cmd = "*idn?"
+    answer = scpiObj.input(cmd)
+    print("\tRequest identification: %s\n\tAnswer: %r" % (cmd, answer))
+    _printFooter("Identification test PASSED")
 
 
 def addInvalidCmds(scpiObj):
@@ -475,14 +483,14 @@ def addInvalidCmds(scpiObj):
     try:
         scpiObj.addCommand(":startswithcolon", readcb=None)
     except NameError as e:
-        print("\tNull name test passed")
+        print("\tNull name test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
         return
     try:
         scpiObj.addCommand("double::colons", readcb=None)
     except NameError as e:
-        print("\tDouble colon name test passed")
+        print("\tDouble colon name test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
         return
@@ -490,10 +498,11 @@ def addInvalidCmds(scpiObj):
         scpiObj.addCommand("nestedSpecial:*special", readcb=None)
     except NameError as e:
         scpiObj._commandTree.pop('nestedSpecial')
-        print("\tNested special command test passed")
+        print("\tNested special command test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
         return
+    _printFooter("Invalid commands test PASSED")
 
 
 def addValidCommands(scpiObj):
@@ -577,6 +586,7 @@ def addValidCommands(scpiObj):
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
     print("Command tree build: %r" % (scpiObj._commandTree))
+    _printFooter("Valid commands test PASSED")
     # TODO: channels with channels until the attributes
 
 
@@ -593,6 +603,7 @@ def checkCommandExecution(scpiObj):
         baseCmd = "CHANnel%s" % (str(ch).zfill(2))
         _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj, baseCmd)
+    _printFooter("Command queries test PASSED")
 
 
 def doCheckCommands(scpiObj, baseCmd):
@@ -604,7 +615,7 @@ def doCheckCommands(scpiObj, baseCmd):
             answer = scpiObj.input(cmd)
             print("\tRequest %s of %s (%s):\n\tAnswer: %r"
                   % (attr.lower(), subCmd.lower(), cmd, answer))
-    _wait()
+    _interTestWait()
 
 
 def checkMultipleCommands(scpiObj):
@@ -626,7 +637,8 @@ def checkMultipleCommands(scpiObj):
         if nAnswers != i:
             raise AssertionError("The answer doesn't have the %d expected "
                                  "elements" % (i))
-        _wait()
+        _interTestWait()
+    _printFooter("Many commands per query test PASSED")
 
 
 def _buildCommand2Test():

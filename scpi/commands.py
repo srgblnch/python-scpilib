@@ -443,6 +443,7 @@ try:
 except:
     from logger import printHeader
 from random import randint
+nChannels = 8
 
 
 def testDictKey(output=True):
@@ -537,7 +538,7 @@ def testAttr(output=True):
 
 
 def idn():
-    return "ALBA,test,0,0.0"
+    return "ALBA,test,0,0.0.0-0"
 
 
 def testSpeciaCommands(output=True):
@@ -574,9 +575,9 @@ def testChannels(output=True):
     if output:
         printHeader("Testing the channels commands construction")
     scpiChannels = BuildComponent()
-    voltageObj = ChannelTest()
-    currentObj = ChannelTest()
-    channels = BuildChannel("channel", 4, scpiChannels)
+    voltageObj = ChannelTest(nChannels)
+    currentObj = ChannelTest(nChannels)
+    channels = BuildChannel("channel", nChannels, scpiChannels)
     voltageComp = BuildComponent('voltage', channels)
     UpperVoltage = BuildAttribute('upper', voltageComp,
                                   readcb=voltageObj.upperLimit,
