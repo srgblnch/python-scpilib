@@ -123,6 +123,7 @@ class Attribute(DictKey):
         self._read_cb = None
         self._write_cb = None
         self._hasChannels = False
+        self._nComponentsWithChannels = 0
 
     def __str__(self):
         repr = "%s" % (self._name)
@@ -152,6 +153,10 @@ class Attribute(DictKey):
     def hasChannels(self):
         return self._hasChannels
 
+    @property
+    def nComponentsWithChannels(self):
+        return self._nComponentsWithChannels
+
     def checkChannels(self):
         parent = self.parent
         while parent is not None:
@@ -159,9 +164,13 @@ class Attribute(DictKey):
                 self._hasChannels = True
                 self._debug("%s: Channels found for %s component"
                             % (self.name, parent.name))
-                return
+                self._nComponentsWithChannels += 1
             parent = parent.parent  # next
-        self._debug("%s: No channels found" % (self.name))
+        if self._nComponentsWithChannels == 0:
+            self._debug("%s: No channels found" % (self.name))
+        else:
+            self._debug("%s: %d parent components with channels found"
+                        % (self.name, self._nComponentsWithChannels))
 
     @property
     def read_cb(self):
@@ -171,11 +180,17 @@ class Attribute(DictKey):
     def read_cb(self, function):
         self._read_cb = function
 
-    def read(self, ch=None):
-        if self.hasChannels and ch is not None:
-            retValue = self._read_cb(ch)
-            self._debug("Attribute %s read from channel %d: %s"
-                        % (self.name, ch, retValue))
+    def read(self, chlst=None):
+        if self.hasChannels and chlst is not None:
+            if len(chlst) == 1:
+                ch = chlst[0]
+                retValue = self._read_cb(ch)
+                self._debug("Attribute %s read from channel %d: %s"
+                            % (self.name, ch, retValue))
+            else:
+                retValue = self._read_cb(chlst)
+                self._debug("Attribute %s read for channel set %s: %s"
+                            % (self.name, chlst, retValue))
         else:
             retValue = self._read_cb()
             self._debug("Attribute %s read: %s" % (self.name, retValue))
@@ -189,11 +204,17 @@ class Attribute(DictKey):
     def write_cb(self, function):
         self._write_cb = function
 
-    def write(self, ch=None, value=None):
-        if self.hasChannels and ch is not None:
-            retValue = self._write_cb(ch, value)
-            self._debug("Attribute %s write %s in channel %d: %s"
-                        % (self.name, value, ch, retValue))
+    def write(self, chlst=None, value=None):
+        if self.hasChannels and chlst is not None:
+            if len(chlst) == 1:
+                ch = chlst[0]
+                retValue = self._write_cb(ch, value)
+                self._debug("Attribute %s write %s in channel %d: %s"
+                            % (self.name, value, ch, retValue))
+            else:
+                retValue = self._write_cb(chlst, value)
+                self._debug("Attribute %s write %s for channel set %s: %s"
+                            % (self.name, value, chlst, retValue))
         else:
             self._write_cb(value)
             self._debug("Attribute %s write %s: %s"
@@ -226,6 +247,7 @@ class Component(_Logger, dict):
         self._defaultKey = None
         self._howMany = None
         self._hasChannels = False
+        self._nComponentsWithChannels = 0
 
     def __str__(self):
         repr = "%s" % (self._name)
@@ -283,6 +305,10 @@ class Component(_Logger, dict):
         return self._hasChannels
 
     @property
+    def nComponentsWithChannels(self):
+        return self._nComponentsWithChannels
+
+    @property
     def isChanneled(self):
         itis = self._howMany is not None
         self._debug("isChanneled = %s" % itis)
@@ -295,9 +321,13 @@ class Component(_Logger, dict):
                 self._hasChannels = True
                 self._debug("%s: Channels found for %s component"
                             % (self.name, parent.name))
-                return
+                self._nComponentsWithChannels += 1
             parent = parent.parent  # next
-        self._debug("%s: No channels found" % (self.name))
+        if self._nComponentsWithChannels == 0:
+            self._debug("%s: No channels found" % (self.name))
+        else:
+            self._debug("%s: %d parent components with channels found"
+                        % (self.name, self._nComponentsWithChannels))
 
     def __getitem__(self, key):
         '''
@@ -446,6 +476,7 @@ except:
     from logger import printHeader
 from random import randint
 nChannels = 8
+nSubchannels = nChannels*2
 
 
 def testDictKey(output=True):
@@ -608,10 +639,69 @@ def testChannels(output=True):
     return scpiChannels
 
 
+class SubchannelTest:
+    def __init__(self, channels=4, subchannels=8,
+                 upperLimit=100, lowerLimit=-100):
+        self._upperLimit = [[upperLimit]*subchannels]*channels
+        self._lowerLimit = [[lowerLimit]*subchannels]*channels
+        # channels starts from 1 and list indexes from 0
+
+    def readTest(self, chlst):
+        ch, subch = chlst
+        return randint(self._lowerLimit[ch-1][subch-1],
+                       self._upperLimit[ch-1][subch-1])
+
+    def upperLimit(self, chlst, value=None):
+        ch, subch = chlst
+        if value is None:
+            return self._upperLimit[ch-1][subch-1]
+        self._upperLimit[ch-1][subch-1] = float(value)
+
+    def lowerLimit(self, chlst, value=None):
+        ch, subch = chlst
+        if value is None:
+            return self._lowerLimit[ch-1][subch-1]
+        self._lowerLimit[ch-1][subch-1] = float(value)
+
+
+def testChannelsWithSubchannels(output=True):
+    if output:
+        printHeader("Testing the nested channels commands construction")
+    scpiChannels = BuildComponent()
+    voltageObj = SubchannelTest(nChannels, nSubchannels)
+    currentObj = SubchannelTest(nChannels, nSubchannels)
+    channels = BuildChannel("channel", nChannels, scpiChannels)
+    measures = BuildComponent('measures', channels)
+    functions = BuildChannel("function", nSubchannels, measures)
+    voltageComp = BuildComponent('voltage', functions)
+    UpperVoltage = BuildAttribute('upper', voltageComp,
+                                  readcb=voltageObj.upperLimit,
+                                  writecb=voltageObj.upperLimit)
+    LowerVoltage = BuildAttribute('lower', voltageComp,
+                                  readcb=voltageObj.lowerLimit,
+                                  writecb=voltageObj.lowerLimit)
+    ReadVoltage = BuildAttribute('value', voltageComp,
+                                 readcb=voltageObj.readTest,
+                                 default=True)
+    currentComp = BuildComponent('current', functions)
+    UpperCurrent = BuildAttribute('upper', currentComp,
+                                  readcb=currentObj.upperLimit,
+                                  writecb=currentObj.upperLimit)
+    LowerCurrent = BuildAttribute('lower', currentComp,
+                                  readcb=currentObj.lowerLimit,
+                                  writecb=currentObj.lowerLimit)
+    ReadCurrent = BuildAttribute('value', currentComp,
+                                 readcb=currentObj.readTest,
+                                 default=True)
+    if output:
+        print("%r" % (scpiChannels))
+    return scpiChannels
+
+
 def main():
     import traceback
     for test in [testDictKey, testComponent, testAttr, testSpeciaCommands,
-                 testChannels]:
+                 testChannels, testChannelsWithSubchannels]:
         try:
             test()
         except Exception as e:

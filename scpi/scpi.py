@@ -25,14 +25,14 @@ import atexit
 try:
     from .commands import Component, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, AttrTest
-    from .commands import ChannelTest, CHNUMSIZE
+    from .commands import ChannelTest, SubchannelTest, CHNUMSIZE
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
     from .version import version as _version
 except:
     from commands import Component, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, AttrTest
-    from commands import ChannelTest, CHNUMSIZE
+    from commands import ChannelTest, SubchannelTest, CHNUMSIZE
     from logger import Logger as _Logger
     from tcpListener import TcpListener
     from version import version as _version
@@ -335,11 +335,11 @@ class scpi(_Logger):
         answer = None
         keywords = cmd.split(':')
         tree = self._commandTree
-        channelNum = None
+        channelNum = []
         for key in keywords:
             self._debug("processing %s" % key)
             if key[-CHNUMSIZE:].isdigit():
-                channelNum = int(key[-CHNUMSIZE:])
+                channelNum.append(int(key[-CHNUMSIZE:]))
                 self._debug("It has been found that this has channels defined")
                 key = key[:-CHNUMSIZE]
             try:
@@ -349,7 +349,7 @@ class scpi(_Logger):
                 if key.endswith('?'):
                     self._debug("last keyword: %s" % (key[:-1]))
                     try:
-                        if channelNum:
+                        if len(channelNum) > 0:
                             self._debug("do read with channel")
                             answer = tree[key[:-1]].read(channelNum)
                         else:
@@ -391,7 +391,7 @@ try:
 except:
     from logger import printHeader as _printHeader
     from logger import printFooter as _printFooter
-    from commands import nChannels
+    from commands import nChannels, nSubchannels
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
@@ -469,9 +469,13 @@ def testScpi(debug=False):
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
-        for test in [checkIDN, addInvalidCmds, addValidCommands,
-                     checkCommandExecution, checkNonexistingCommands,
-                     checkMultipleCommands]:
+        for test in [checkIDN,
+                     addInvalidCmds,
+                     addValidCommands,
+                     checkCommandExecution,
+                     checkNonexistingCommands,
+                     checkMultipleCommands
+                     ]:
             test(scpiObj)
             _afterTestWait()
     _printHeader("All tests passed: everything OK (%g s)" % (_time()-start_t))
@@ -596,6 +600,28 @@ def addValidCommands(scpiObj):
                     default = False
                 attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                cbFunc, default=default)
+    # * Example of how can be nested channel type components in a tree that
+    #   already have this channels componets defined.
+    measCmd = 'measurements'
+    measObj = scpiObj.addComponent(measCmd, chObj)
+    fnCmd = 'function'
+    fnObj = scpiObj.addChannel(fnCmd, nSubchannels, measObj)
+    chfnCurrentObj = SubchannelTest(nChannels, nSubchannels)
+    chfnVoltageObj = SubchannelTest(nChannels, nSubchannels)
+    for (subcomponent, subCmdObj) in [('current', chfnCurrentObj),
+                                      ('voltage', chfnVoltageObj)]:
+        subcomponentObj = scpiObj.addComponent(subcomponent, fnObj)
+        for (attrName, attrFunc) in [('upper', 'upperLimit'),
+                                     ('lower', 'lowerLimit'),
+                                     ('value', 'readTest')]:
+            if hasattr(subCmdObj, attrFunc):
+                cbFunc = getattr(subCmdObj, attrFunc)
+                if attrName == 'value':
+                    default = True
+                else:
+                    default = False
+                attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                               cbFunc, default=default)
     print("Command tree build: %r" % (scpiObj._commandTree))
     _printFooter("Valid commands test PASSED")
     # TODO: channels with channels until the attributes
@@ -614,14 +640,19 @@ def checkCommandExecution(scpiObj):
         baseCmd = "CHANnel%s" % (str(ch).zfill(2))
         _printHeader("Check %s part of the tree" % (baseCmd))
         doCheckCommands(scpiObj, baseCmd)
+        fn = _randomchoice(range(1, nSubchannels+1))
+        innerCmd = "FUNCtion%s" % (str(fn).zfill(2))
+        _printHeader("Check %s + MEAS:%s part of the tree"
+                     % (baseCmd, innerCmd))
+        doCheckCommands(scpiObj, baseCmd, innerCmd)
     _printFooter("Command queries test PASSED")
 
 
 def checkNonexistingCommands(scpiObj):
     _printHeader("Testing to query commands that doesn't exist")
-    baseCmd =  _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
-    subCmd =  _randomchoice(['CURRent', 'VOLTage'])
-    attr =  _randomchoice(['UPPEr', 'LOWEr', 'VALUe'])
+    baseCmd = _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
+    subCmd = _randomchoice(['CURRent', 'VOLTage'])
+    attr = _randomchoice(['UPPEr', 'LOWEr', 'VALUe'])
     fake = "FAKE"
     # * first level doesn't exist
     start_t = _time()
@@ -653,12 +684,15 @@ def checkNonexistingCommands(scpiObj):
     _printFooter("Non-existing commands test PASSED")
 
 
-def doCheckCommands(scpiObj, baseCmd):
+def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
     subCmds = ['CURRent', 'VOLTage']
     attrs = ['UPPEr', 'LOWEr', 'VALUe']
     for subCmd in subCmds:
         for attr in attrs:
-            cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
+            if innerCmd:
+                cmd = "%s:MEAS:%s:%s:%s?" % (baseCmd, innerCmd, subCmd, attr)
+            else:
+                cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
             answer = scpiObj.input(cmd)
             print("\tRequest %s of %s (%s)\n\tAnswer: %r"
                   % (attr.lower(), subCmd.lower(), cmd, answer))
@@ -695,6 +729,10 @@ def _buildCommand2Test():
     baseCmd = _randomchoice(baseCmds)
     if baseCmd in ['CHANnel']:
         baseCmd = "%s%s" % (baseCmd, str(_randint(1, nChannels)).zfill(2))
+        if _randint(0, 1):
+            baseCmd = "%s:MEAS:FUNC%s" % (baseCmd,
+                                          str(_randint(1,
+                                                       nSubchannels)).zfill(2))
     subCmd = _randomchoice(subCmds)
     attr = _randomchoice(attrs)
     return "%s:%s:%s?" % (baseCmd, subCmd, attr)
