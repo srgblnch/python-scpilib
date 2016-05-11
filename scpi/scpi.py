@@ -24,14 +24,14 @@ __license__ = "GPLv3+"
 import atexit
 try:
     from .commands import Component, BuildComponent, BuildChannel
-    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from .commands import BuildAttribute, BuildSpecialCmd, AttrTest, ArrayTest
     from .commands import ChannelTest, SubchannelTest, CHNUMSIZE
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
     from .version import version as _version
 except:
     from commands import Component, BuildComponent, BuildChannel
-    from commands import BuildAttribute, BuildSpecialCmd, AttrTest
+    from commands import BuildAttribute, BuildSpecialCmd, AttrTest, ArrayTest
     from commands import ChannelTest, SubchannelTest, CHNUMSIZE
     from logger import Logger as _Logger
     from tcpListener import TcpListener
@@ -474,6 +474,7 @@ def testScpi(debug=False):
                      addValidCommands,
                      checkCommandExecution,
                      checkNonexistingCommands,
+                     checkArrayAnswers,
                      checkMultipleCommands
                      ]:
             test(scpiObj)
@@ -648,6 +649,21 @@ def checkCommandExecution(scpiObj):
     _printFooter("Command queries test PASSED")
 
 
+def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
+    subCmds = ['CURRent', 'VOLTage']
+    attrs = ['UPPEr', 'LOWEr', 'VALUe']
+    for subCmd in subCmds:
+        for attr in attrs:
+            if innerCmd:
+                cmd = "%s:MEAS:%s:%s:%s?" % (baseCmd, innerCmd, subCmd, attr)
+            else:
+                cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
+            answer = scpiObj.input(cmd)
+            print("\tRequest %s of %s (%s)\n\tAnswer: %r"
+                  % (attr.lower(), subCmd.lower(), cmd, answer))
+    _interTestWait()
+
+
 def checkNonexistingCommands(scpiObj):
     _printHeader("Testing to query commands that doesn't exist")
     baseCmd = _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
@@ -684,19 +700,28 @@ def checkNonexistingCommands(scpiObj):
     _printFooter("Non-existing commands test PASSED")
 
 
-def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
-    subCmds = ['CURRent', 'VOLTage']
-    attrs = ['UPPEr', 'LOWEr', 'VALUe']
-    for subCmd in subCmds:
-        for attr in attrs:
-            if innerCmd:
-                cmd = "%s:MEAS:%s:%s:%s?" % (baseCmd, innerCmd, subCmd, attr)
-            else:
-                cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
-            answer = scpiObj.input(cmd)
-            print("\tRequest %s of %s (%s)\n\tAnswer: %r"
-                  % (attr.lower(), subCmd.lower(), cmd, answer))
-    _interTestWait()
+def checkArrayAnswers(scpiObj):
+    _printHeader("Requesting an attribute the answer of which is an array")
+    baseCmd = 'source'
+    attrCmd = 'buffer'
+    longTest = ArrayTest(100)
+    scpiObj.addCommand(attrCmd, readcb=longTest.readTest)
+    # current
+    CurrentObj = ArrayTest(5)
+    CurrentCmd = "%s:current:%s" % (baseCmd,attrCmd)
+    scpiObj.addCommand(CurrentCmd, readcb=CurrentObj.readTest)
+    # voltage
+    VoltageObj = ArrayTest(5)
+    VoltageCmd = "%s:voltage:%s" % (baseCmd,attrCmd)
+    scpiObj.addCommand(VoltageCmd, readcb=VoltageObj.readTest)
+    # queries
+    answer = scpiObj.input(attrCmd + '?')
+    print("\tRequest %s \n\tAnswer: %r" % (attrCmd, answer))
+    answer = scpiObj.input(CurrentCmd + '?')
+    print("\tRequest %s \n\tAnswer: %r" % (CurrentCmd, answer))
+    answer = scpiObj.input(VoltageCmd + '?')
+    print("\tRequest %s \n\tAnswer: %r" % (VoltageCmd, answer))
+    _printFooter("Array answers test PASSED")
 
 
 def checkMultipleCommands(scpiObj):
@@ -734,7 +759,10 @@ def _buildCommand2Test():
                                           str(_randint(1,
                                                        nSubchannels)).zfill(2))
     subCmd = _randomchoice(subCmds)
-    attr = _randomchoice(attrs)
+    if baseCmd in ['SOURce']:
+        attr = _randomchoice(attrs + ['BUFFer'])
+    else:
+        attr = _randomchoice(attrs)
     return "%s:%s:%s?" % (baseCmd, subCmd, attr)
 
 

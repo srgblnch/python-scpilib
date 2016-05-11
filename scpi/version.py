@@ -24,9 +24,9 @@ __license__ = "GPLv3+"
 # Look at https://en.wikipedia.org/wiki/Software_versioning
 
 __MAJOR_VERSION = 0
-__MINOR_VERSION = 2
+__MINOR_VERSION = 3
 __BUILD_VERSION = 0
-__REVISION_VERSION = 1
+__REVISION_VERSION = 0
 __RELEASE_CANDIDATE = None
 
 

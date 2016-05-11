@@ -37,6 +37,22 @@ except:
     from logger import Logger as _Logger
     from version import version as _version
 
+try:
+    from numpy import ndarray as _np_ndarray
+    from numpy.random import random as _np_randomArray
+    _np = True
+except:
+    _np = False
+    _np_ndarray = list
+    from random import random
+
+try:
+    from scipy import ndarray as _sp_ndarray
+    _sp = True
+except:
+    _sp = False
+    _sp_ndarray = list
+
 MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
 
@@ -194,7 +210,27 @@ class Attribute(DictKey):
         else:
             retValue = self._read_cb()
             self._debug("Attribute %s read: %s" % (self.name, retValue))
+        # if answer is a list, manipulate it to follow the rule
+        # '#NMMMMMMMMM...\n'
+        if type(retValue) in [list, _np_ndarray, _sp_ndarray]:
+            retValue = self._convertArray(retValue)
         return retValue
+
+    def _convertArray(self, argin):
+        # TODO: flat the array
+        if type(argin) in [_np_ndarray, _sp_ndarray]:
+            flattened = argin.flatten()
+        else:
+            flattened = argin
+        # prepare the header
+        lenght = str(len(flattened))
+        firstField = str(len(lenght))
+        if len(firstField) > 1:
+            self._error("A %s array cannot be codified" % (lenght))
+            return float("NaN")
+        header = "#%1s%s" % (firstField, lenght)
+        data = "".join("%s," % element for element in flattened)[:-1]
+        return header + data
 
     @property
     def write_cb(self):
@@ -225,7 +261,7 @@ class Attribute(DictKey):
 def BuildAttribute(name, parent, readcb=None, writecb=None, default=False):
     attr = Attribute(name)
     attr.parent = parent
-    if parent is not None:
+    if parent is not None and name is not None:
         parent[name] = attr
     attr.read_cb = readcb
     attr.write_cb = writecb
@@ -698,10 +734,36 @@ def testChannelsWithSubchannels(output=True):
     return scpiChannels
 
 
+class ArrayTest:
+    def __init__(self, length=100):
+        self._length = length
+
+    def readTest(self):
+        if _np:
+            return _np_randomArray(self._length)
+        else:
+            lst = []
+            for i in range(self._length):
+                lst.append(random())
+            return lst
+
+
+def testArrayAnswers(output=True):
+    if output:
+        printHeader("Testing the array conversion answers")
+    scpiArrays = BuildComponent()
+    reading = ArrayTest()
+    arrayreader = BuildAttribute('readarray', scpiArrays,
+                                 readcb=reading.readTest)
+    if output:
+        print("%r" % (scpiArrays))
+    return scpiArrays
+
+
 def main():
     import traceback
     for test in [testDictKey, testComponent, testAttr, testSpeciaCommands,
-                 testChannels, testChannelsWithSubchannels]:
+                 testChannels, testChannelsWithSubchannels, testArrayAnswers]:
         try:
             test()
         except Exception as e:
