@@ -39,6 +39,7 @@ except:
     from version import version as _version
 from time import sleep as _sleep
 from time import time as _time
+from traceback import print_exc
 
 from threading import currentThread as _currentThread
 
@@ -355,31 +356,33 @@ class scpi(_Logger):
                             answer = tree[key[:-1]].read(channelNum)
                         else:
                             answer = tree[key[:-1]].read()
-                        # TODO: support list readings and its conversion to
-                        #      '#NMMMMMMMMM...' stream
-                        # This may require a DataFormat feature to pack the
-                        # data in bytes, shorts or longs.
+                        # With the support for list readings (its conversion
+                        # to '#NMMMMMMMMM...' stream:
+                        # TODO: This will require a DataFormat feature to
+                        #       pack the data in bytes, shorts or longs.
                     except Exception as e:
                         self._warning("Exception reading '%s': %s" % (cmd, e))
                         answer = float('NaN')
+                        print_exc()
                 else:
                     try:
-                        bar = key.split(' ')
-                        # if there is more than one space in the middle,
-                        # take first and last
-                        key = bar[0]
-                        value = bar[-1]
+                        if key.count(' ') != 1:
+                            raise SyntaxError("Write needs one (and only one) "
+                                              "argument. If many separate them"
+                                              "with commas.")
+                        key, value = key.split(' ')
                         if channelNum:
                             self._debug("do write with channel")
-                            tree[key].write(channelNum, value)
+                            tree[key].write(chlst=channelNum, value=value)
                             answer = tree[key].read(channelNum)
                         else:
-                            tree[key].write(value)
+                            tree[key].write(value=value)
                             # TODO: there's a SCPI command to inhibit this read
                             answer = tree[key].read()
                     except Exception as e:
                         self._warning("Exception writing '%s': %s" % (cmd, e))
                         answer = float('NaN')
+                        print_exc()
         self._debug("command %s processed in %g ms"
                     % (cmd, (_time()-start_t)*1000))
         return answer

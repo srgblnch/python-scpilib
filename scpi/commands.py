@@ -246,7 +246,7 @@ class Attribute(DictKey):
     def write_cb(self, function):
         self._write_cb = function
 
-    def write(self, value=None, chlst=None):
+    def write(self, chlst=None, value=None):
         if self._write_cb is not None:
             if self.hasChannels and chlst is not None:
                 if len(chlst) == 1:
