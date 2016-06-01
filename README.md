@@ -157,3 +157,7 @@ command 'CHAN05:CURR:VALU?'.
 
 * Event subscription. Unknow if scpi has something about this in the specs.
 
+* Use SSL.
+
+* Authentication and ACLs.
+
