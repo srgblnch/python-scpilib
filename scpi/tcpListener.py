@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ##### BEGIN GPL LICENSE BLOCK #####
 #
 #  This program is free software; you can redistribute it and/or
@@ -16,7 +17,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torne"
+__author__ = "Sergi Blanch-Torné"
 __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"

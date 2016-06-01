@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ##### BEGIN GPL LICENSE BLOCK #####
 #
 #  This program is free software; you can redistribute it and/or
@@ -197,24 +198,25 @@ class Attribute(DictKey):
         self._read_cb = function
 
     def read(self, chlst=None):
-        if self.hasChannels and chlst is not None:
-            if len(chlst) == 1:
-                ch = chlst[0]
-                retValue = self._read_cb(ch)
-                self._debug("Attribute %s read from channel %d: %s"
-                            % (self.name, ch, retValue))
+        if self._read_cb is not None:
+            if self.hasChannels and chlst is not None:
+                if len(chlst) == 1:
+                    ch = chlst[0]
+                    retValue = self._read_cb(ch)
+                    self._debug("Attribute %s read from channel %d: %s"
+                                % (self.name, ch, retValue))
+                else:
+                    retValue = self._read_cb(chlst)
+                    self._debug("Attribute %s read for channel set %s: %s"
+                                % (self.name, chlst, retValue))
             else:
-                retValue = self._read_cb(chlst)
-                self._debug("Attribute %s read for channel set %s: %s"
-                            % (self.name, chlst, retValue))
-        else:
-            retValue = self._read_cb()
-            self._debug("Attribute %s read: %s" % (self.name, retValue))
-        # if answer is a list, manipulate it to follow the rule
-        # '#NMMMMMMMMM...\n'
-        if type(retValue) in [list, _np_ndarray, _sp_ndarray]:
-            retValue = self._convertArray(retValue)
-        return retValue
+                retValue = self._read_cb()
+                self._debug("Attribute %s read: %s" % (self.name, retValue))
+            # if answer is a list, manipulate it to follow the rule
+            # '#NMMMMMMMMM...\n'
+            if type(retValue) in [list, _np_ndarray, _sp_ndarray]:
+                retValue = self._convertArray(retValue)
+            return retValue
 
     def _convertArray(self, argin):
         # TODO: flat the array
@@ -230,6 +232,10 @@ class Attribute(DictKey):
             return float("NaN")
         header = "#%1s%s" % (firstField, lenght)
         data = "".join("%s," % element for element in flattened)[:-1]
+        # TODO: binary data (with single precision):
+        #       ''.join(struct.pack('f', element) for element in flattened)
+        # TODO: half-precision and mini-precision (byte)
+        # FIXME: does this have sense with double precision?
         return header + data
 
     @property
@@ -240,22 +246,23 @@ class Attribute(DictKey):
     def write_cb(self, function):
         self._write_cb = function
 
-    def write(self, chlst=None, value=None):
-        if self.hasChannels and chlst is not None:
-            if len(chlst) == 1:
-                ch = chlst[0]
-                retValue = self._write_cb(ch, value)
-                self._debug("Attribute %s write %s in channel %d: %s"
-                            % (self.name, value, ch, retValue))
+    def write(self, value=None, chlst=None):
+        if self._write_cb is not None:
+            if self.hasChannels and chlst is not None:
+                if len(chlst) == 1:
+                    ch = chlst[0]
+                    retValue = self._write_cb(ch, value)
+                    self._debug("Attribute %s write %s in channel %d: %s"
+                                % (self.name, value, ch, retValue))
+                else:
+                    retValue = self._write_cb(chlst, value)
+                    self._debug("Attribute %s write %s for channel set %s: %s"
+                                % (self.name, value, chlst, retValue))
             else:
-                retValue = self._write_cb(chlst, value)
-                self._debug("Attribute %s write %s for channel set %s: %s"
-                            % (self.name, value, chlst, retValue))
-        else:
-            self._write_cb(value)
-            self._debug("Attribute %s write %s: %s"
-                        % (self.name, value, retValue))
-        return retValue
+                retValue = self._write_cb(value)
+                self._debug("Attribute %s write %s: %s"
+                            % (self.name, value, retValue))
+            return retValue
 
 
 def BuildAttribute(name, parent, readcb=None, writecb=None, default=False):

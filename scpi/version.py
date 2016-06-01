@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ##### BEGIN GPL LICENSE BLOCK #####
 #
 #  This program is free software; you can redistribute it and/or
@@ -26,7 +27,7 @@ __license__ = "GPLv3+"
 __MAJOR_VERSION = 0
 __MINOR_VERSION = 3
 __BUILD_VERSION = 0
-__REVISION_VERSION = 0
+__REVISION_VERSION = 2
 __RELEASE_CANDIDATE = None
 
 
