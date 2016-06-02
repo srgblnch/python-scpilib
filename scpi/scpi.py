@@ -21,6 +21,8 @@ __author__ = "Sergi Blanch-Torné"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
+__all__ = ["scpi"]
+
 
 import atexit
 try:
@@ -340,9 +342,10 @@ class scpi(_Logger):
         channelNum = []
         for key in keywords:
             self._debug("processing %s" % key)
-            if key[-CHNUMSIZE:].isdigit():
+            if not key.count(' ') and key[-CHNUMSIZE:].isdigit():
                 channelNum.append(int(key[-CHNUMSIZE:]))
-                self._debug("It has been found that this has channels defined")
+                self._debug("It has been found that this has channels defined "
+                            "for keyword %s" % (key))
                 key = key[:-CHNUMSIZE]
             try:
                 tree = tree[key]
@@ -371,11 +374,13 @@ class scpi(_Logger):
                                               "argument. If many separate them"
                                               "with commas.")
                         key, value = key.split(' ')
-                        if channelNum:
-                            self._debug("do write with channel")
+                        if len(channelNum) > 0:
+                            self._debug("do write (with channel %s) %s: %s"
+                                        % (channelNum, key, value))
                             tree[key].write(chlst=channelNum, value=value)
                             answer = tree[key].read(channelNum)
                         else:
+                            self._debug("do write %s: %s" % (key, value))
                             tree[key].write(value=value)
                             # TODO: there's a SCPI command to inhibit this read
                             answer = tree[key].read()
@@ -476,7 +481,7 @@ def testScpi(debug=False):
         for test in [checkIDN,
                      addInvalidCmds,
                      addValidCommands,
-                     checkCommandExecution,
+                     checkCommandQueries,
                      checkNonexistingCommands,
                      checkArrayAnswers,
                      checkMultipleCommands
@@ -632,7 +637,7 @@ def addValidCommands(scpiObj):
     # TODO: channels with channels until the attributes
 
 
-def checkCommandExecution(scpiObj):
+def checkCommandQueries(scpiObj):
     _printHeader("Testing to command queries")
     print("Launch tests:")
     cmd = "*IDN?"
@@ -650,6 +655,12 @@ def checkCommandExecution(scpiObj):
         _printHeader("Check %s + MEAS:%s part of the tree"
                      % (baseCmd, innerCmd))
         doCheckCommands(scpiObj, baseCmd, innerCmd)
+    _printFooter("Command queries test PASSED")
+
+
+def checkCommandWrites(scpiObj):
+    _printHeader("Testing to command writes")
+    
     _printFooter("Command queries test PASSED")
 
 
