@@ -247,6 +247,7 @@ class Attribute(DictKey):
         self._write_cb = function
 
     def write(self, chlst=None, value=None):
+        self._debug("%s.write(ch=%s, value=%s)" % (self.name, chlst, value))
         if self._write_cb is not None:
             if self.hasChannels and chlst is not None:
                 if len(chlst) == 1:
@@ -407,14 +408,14 @@ class Component(_Logger, dict):
         dict.__setitem__(self, key, val)
         val.parent = self
 
-    def read(self):
+    def read(self, chlst=None):
         if self._defaultKey:
-            return self.__getitem__(self._defaultKey).read()
+            return self.__getitem__(self._defaultKey).read(chlst)
         return float('NaN')
 
-    def write(self, value):
+    def write(self, chlst=None, value=None):
         if self._defaultKey:
-            return self.__getitem__(self._defaultKey).write(value)
+            return self.__getitem__(self._defaultKey).write(chlst, value)
         return float('NaN')
 
 
@@ -584,6 +585,18 @@ class AttrTest:
         raise Exception("controlled exception")
 
 
+class WattrTest(AttrTest):
+    def __init__(self, upperLimit=100, lowerLimit=-100):
+        AttrTest.__init__(self, upperLimit, lowerLimit)
+        self._value = randint(self._lowerLimit, self._upperLimit)
+
+    def readTest(self):
+        return self._value
+
+    def writeTest(self, value):
+        self._value = value
+
+
 def testAttr(output=True):
     if output:
         printHeader("Testing read/write operations construction")
@@ -648,6 +661,22 @@ class ChannelTest:
         if value is None:
             return self._lowerLimit[ch-1]
         self._lowerLimit[ch-1] = float(value)
+
+
+class WchannelTest(ChannelTest):
+    def __init__(self, channels=4, upperLimit=100, lowerLimit=-100):
+        ChannelTest.__init__(self, channels, upperLimit, lowerLimit)
+        self._value = []
+        for i in range(channels):
+            lowerLimit = self._lowerLimit[i]
+            upperLimit = self._upperLimit[i]
+            self._value.append(randint(lowerLimit, upperLimit))
+
+    def readTest(self, ch):
+        return self._value[ch-1]
+    
+    def writeTest(self, ch, value):
+        self._value[ch-1] = value
 
 
 def testChannels(output=True):

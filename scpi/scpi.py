@@ -29,6 +29,7 @@ try:
     from .commands import Component, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, AttrTest, ArrayTest
     from .commands import ChannelTest, SubchannelTest, CHNUMSIZE
+    from .commands import WattrTest, WchannelTest
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
     from .version import version as _version
@@ -36,6 +37,7 @@ except:
     from commands import Component, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, AttrTest, ArrayTest
     from commands import ChannelTest, SubchannelTest, CHNUMSIZE
+    from commands import WattrTest, WchannelTest
     from logger import Logger as _Logger
     from tcpListener import TcpListener
     from version import version as _version
@@ -350,9 +352,8 @@ class scpi(_Logger):
             try:
                 tree = tree[key]
             except Exception as e:
-                self._debug("Leaf of the tree %s" % (key))
                 if key.endswith('?'):
-                    self._debug("last keyword: %s" % (key[:-1]))
+                    self._debug("Leaf of the tree %r" % (key[:-1]))
                     try:
                         if len(channelNum) > 0:
                             self._debug("do read with channel")
@@ -367,13 +368,10 @@ class scpi(_Logger):
                         self._warning("Exception reading '%s': %s" % (cmd, e))
                         answer = float('NaN')
                         print_exc()
-                else:
+                elif key.count(' ') == 1:
                     try:
-                        if key.count(' ') != 1:
-                            raise SyntaxError("Write needs one (and only one) "
-                                              "argument. If many separate them"
-                                              "with commas.")
                         key, value = key.split(' ')
+                        self._debug("Leaf of the tree %r (%r)" % (key, value))
                         if len(channelNum) > 0:
                             self._debug("do write (with channel %s) %s: %s"
                                         % (channelNum, key, value))
@@ -388,6 +386,11 @@ class scpi(_Logger):
                         self._warning("Exception writing '%s': %s" % (cmd, e))
                         answer = float('NaN')
                         print_exc()
+                else:
+                    self._error("Not possible to understand key %s (from %s)"
+                                % (key, cmd))
+                    answer = float('NaN')
+                    break
         self._debug("command %s processed in %g ms"
                     % (cmd, (_time()-start_t)*1000))
         return answer
@@ -482,6 +485,7 @@ def testScpi(debug=False):
                      addInvalidCmds,
                      addValidCommands,
                      checkCommandQueries,
+                     checkCommandWrites,
                      checkNonexistingCommands,
                      checkArrayAnswers,
                      checkMultipleCommands
@@ -660,8 +664,95 @@ def checkCommandQueries(scpiObj):
 
 def checkCommandWrites(scpiObj):
     _printHeader("Testing to command writes")
-    
+    # simple commands ---
+    currentConfObj = WattrTest()
+    scpiObj.addCommand('source:current:configure',
+                       readcb=currentConfObj.readTest,
+                       writecb=currentConfObj.writeTest)
+    voltageConfObj = WattrTest()
+    scpiObj.addCommand('source:voltage:configure',
+                       readcb=voltageConfObj.readTest,
+                       writecb=voltageConfObj.writeTest)
+    for inner in ['current', 'voltage']:
+        doWriteCommand(scpiObj, "source:%s:configure" % (inner))
+    _wait(1)  # FIXME: remove
+    # channel commands ---
+    baseCmd = 'writable'
+    wObj = scpiObj.addComponent(baseCmd, scpiObj._commandTree)
+    chCmd = 'channel'
+    chObj = scpiObj.addChannel(chCmd, nChannels, wObj)
+    chCurrentObj = WchannelTest(nChannels)
+    chVoltageObj = WchannelTest(nChannels)
+    for (subcomponent, subCmdObj) in [('current', chCurrentObj),
+                                      ('voltage', chVoltageObj)]:
+        subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
+        for (attrName, attrFunc) in [('upper', 'upperLimit'),
+                                     ('lower', 'lowerLimit'),
+                                     ('value', 'readTest')]:
+            if hasattr(subCmdObj, attrFunc):
+                if attrName == 'value':
+                    attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                               readcb=subCmdObj.readTest,
+                                               writecb=subCmdObj.writeTest,
+                                               default=True)
+                else:
+                    cbFunc = getattr(subCmdObj, attrFunc)
+                    attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
+                                                   cbFunc)
+    # print("Command tree build: %r" % (scpiObj._commandTree))
+    for i in range(nChannels*2):
+        rndCh = _randint(1,nChannels)
+        element = _randomchoice(['current', 'voltage'])
+        doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndCh,
+                              element, nChannels)
+        _interTestWait()
     _printFooter("Command queries test PASSED")
+
+
+def doWriteCommand(scpiObj, cmd):
+    # first read ---
+    answer1 = scpiObj.input("%s?" % cmd)
+    print("\tRequested %s initial value: %r" % (cmd, answer1))
+    # then write ---
+    value = _randint(-1000,1000)
+    while value == int(answer1.strip()):
+        value = _randint(-1000,1000)
+    answer2 = scpiObj.input("%s %s" % (cmd,value))
+    print("\tWrite %s value: %s, answer: %r" % (cmd, value, answer2))
+    # read again ---
+    answer3 = scpiObj.input("%s?" % cmd)
+    print("\tRequested %s again value: %r\n" % (cmd, answer3))
+    if answer2 != answer3:
+        raise AssertionError("Didn't change after write (%s, %s, %s)"
+                             % (answer1, answer2, answer3))
+
+
+def doWriteChannelCommand(scpiObj, pre, inner, post, nCh):
+    # first read all the channels ---
+    maskCmd = "%sNN:%s" % (pre, post)
+    rCmd = ''.join("%s%s:%s?;" % (pre, str(ch).zfill(2), post)
+                   for ch in range(1,nCh+1))
+    answer1 = scpiObj.input("%s" % rCmd)
+    toModify = answer1.strip().split(';')[inner-1]
+    value = _randint(-1000,1000)
+    while value == int(toModify):
+        value = _randint(-1000,1000)
+    print("\tRequested %s initial values: %r (highlight %s:%s)"
+          % (maskCmd, answer1, inner, toModify))
+    # then write the specified one ---
+    wCmd = "%s%s:%s" % (pre, str(inner).zfill(2), post)
+    answer2 = scpiObj.input("%s %s" % (wCmd,value))
+    print("\tWrite %s value: %s, answer: %r" % (wCmd, value, answer2))
+    # read again all of them ---
+    answer3 = scpiObj.input("%s" % rCmd)
+    modified = answer3.strip().split(';')[inner-1]
+    print("\tRequested %s again value: %r (highlight %s)\n"
+          % (maskCmd, answer3, modified))
+    if answer2.strip() != modified:
+        raise AssertionError("Didn't change after write (%s, %s, %s)"
+                             % (toModify, answer2.strip(), modified))
+    elif toModify == modified:
+        raise Warning("All three are equal!")
 
 
 def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
@@ -760,6 +851,7 @@ def checkMultipleCommands(scpiObj):
                                  "elements" % (i))
         _interTestWait()
     _printFooter("Many commands per query test PASSED")
+    # TODO: multiple writes
 
 
 def _buildCommand2Test():
