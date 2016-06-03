@@ -681,6 +681,7 @@ def checkCommandWrites(scpiObj):
         doWriteCommand(scpiObj, "source:%s:configure" % (inner))
     _wait(1)  # FIXME: remove
     # channel commands ---
+    _printHeader("Testing to channel command writes")
     baseCmd = 'writable'
     wObj = scpiObj.addComponent(baseCmd, scpiObj._commandTree)
     chCmd = 'channel'
@@ -703,13 +704,28 @@ def checkCommandWrites(scpiObj):
                     cbFunc = getattr(subCmdObj, attrFunc)
                     attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                    cbFunc)
-    # print("Command tree build: %r" % (scpiObj._commandTree))
-    for i in range(nChannels*2):
+    print("\nChecking one write multiple reads\n")
+    for i in range(nChannels):
         rndCh = _randint(1, nChannels)
         element = _randomchoice(['current', 'voltage'])
         doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndCh,
                               element, nChannels)
         _interTestWait()
+    print("\nChecking multile writes multiple reads\n")
+    for i in range(nChannels):
+        testNwrites = _randint(2, nChannels)
+        rndChs = []
+        while len(rndChs) < testNwrites:
+            rndCh = _randint(1, nChannels)
+            while rndCh in rndChs:
+                rndCh = _randint(1, nChannels)
+            rndChs.append(rndCh)
+        element = _randomchoice(['current', 'voltage'])
+        values = [_randint(-1000, 1000)]*testNwrites
+        doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndChs,
+                              element, nChannels, values)
+        _interTestWait()
+    print("\nChecking write with allowed values limitation\n")
     selectionCmd = 'source:selection'
     selectionObj = WattrTest()
     selectionObj.writeTest(False)
@@ -747,32 +763,55 @@ def doWriteCommand(scpiObj, cmd, value=None):
                              % (answer1, answer2, answer3))
 
 
-def doWriteChannelCommand(scpiObj, pre, inner, post, nCh):
-    # first read all the channels ---
+def doWriteChannelCommand(scpiObj, pre, inner, post, nCh, value=None):
     maskCmd = "%sNN:%s" % (pre, post)
+    # first read all the channels ---
+    answer1, toModify, value = _channelCmds_readCheck(scpiObj, pre, inner,
+                                                      post, nCh, value)
+    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)"
+          % (maskCmd, answer1, toModify.items()))
+    # then write the specified one ---
+    answer2, wCmd = _channelCmds_write(scpiObj, pre, inner, post, nCh, value)
+    print("\tWrite %s value: %s, answer:\n\t\t%r" % (wCmd, value, answer2))
+    # read again all of them ---
+    answer3, modified, value = _channelCmds_readCheck(scpiObj, pre, inner,
+                                                      post, nCh, value)
+    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)\n"
+          % (maskCmd, answer3, modified.items()))
+
+
+def _channelCmds_readCheck(scpiObj, pre, inner, post, nCh, value=None):
     rCmd = ''.join("%s%s:%s?;" % (pre, str(ch).zfill(2), post)
                    for ch in range(1, nCh+1))
-    answer1 = scpiObj.input("%s" % rCmd)
-    toModify = answer1.strip().split(';')[inner-1]
-    value = _randint(-1000, 1000)
-    while value == int(toModify):
-        value = _randint(-1000, 1000)
-    print("\tRequested %s initial values: %r (highlight %s:%s)"
-          % (maskCmd, answer1, inner, toModify))
-    # then write the specified one ---
-    wCmd = "%s%s:%s" % (pre, str(inner).zfill(2), post)
-    answer2 = scpiObj.input("%s %s" % (wCmd, value))
-    print("\tWrite %s value: %s, answer: %r" % (wCmd, value, answer2))
-    # read again all of them ---
-    answer3 = scpiObj.input("%s" % rCmd)
-    modified = answer3.strip().split(';')[inner-1]
-    print("\tRequested %s again value: %r (highlight %s)\n"
-          % (maskCmd, answer3, modified))
-    if answer2.strip() != modified:
-        raise AssertionError("Didn't change after write (%s, %s, %s)"
-                             % (toModify, answer2.strip(), modified))
-    elif toModify == modified:
-        raise Warning("All three are equal!")
+    answer = scpiObj.input("%s" % rCmd)
+    if type(inner) is list:
+        toCheck = {}
+        for i in inner:
+            toCheck[i] = answer.strip().split(';')[i-1]
+    else:
+        toCheck = {inner: answer.strip().split(';')[inner-1]}
+        if value is None:
+            value = _randint(-1000, 1000)
+            while value == int(toCheck[inner]):
+                value = _randint(-1000, 1000)
+    return answer, toCheck, value
+
+
+def _channelCmds_write(scpiObj, pre, inner, post, nCh, value):
+    if type(inner) is list:
+        if type(value) is not list:
+            value = [value]*len(inner)
+        while len(value) < len(inner):
+            value += value[-1]
+        wCmd = ""
+        for i, each in enumerate(inner):
+            wCmd += "%s%s:%s %s;" % (pre, str(each).zfill(2), post,
+                                     value[i])
+        wCmd = wCmd[:-1]
+    else:
+        wCmd = "%s%s:%s %s" % (pre, str(inner).zfill(2), post, value)
+    answer = scpiObj.input("%s" % (wCmd))
+    return answer, wCmd
 
 
 def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
