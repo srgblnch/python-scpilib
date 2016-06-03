@@ -226,7 +226,8 @@ class scpi(_Logger):
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildChannel(name, howMany, parent)
 
-    def addAttribute(self, name, parent, readcb, writecb=None, default=False):
+    def addAttribute(self, name, parent, readcb, writecb=None, default=False,
+                     allowedArgins=None):
         if not hasattr(parent, 'keys'):
             raise TypeError("For %s, parent doesn't accept attributes"
                             % (name))
@@ -234,9 +235,11 @@ class scpi(_Logger):
             self._debug("attribute '%s' already exist" % (name))
             return
         self._debug("Adding attribute '%s' (%s)" % (name, parent))
-        return BuildAttribute(name, parent, readcb, writecb, default)
+        return BuildAttribute(name, parent, readcb, writecb, default,
+                              allowedArgins)
 
-    def addCommand(self, FullName, readcb, writecb=None, default=False):
+    def addCommand(self, FullName, readcb, writecb=None, default=False,
+                   allowedArgins=None):
         '''
             adds the command in the structure of [X:Y:]Z composed by Components
             X, Y and as many as ':' separated have. The last one will
@@ -259,7 +262,8 @@ class scpi(_Logger):
             for i, part in enumerate(nameParts[:-1]):
                 self.addComponent(part, tree)
                 tree = tree[part]
-        self.addAttribute(nameParts[-1], tree, readcb, writecb, default)
+        self.addAttribute(nameParts[-1], tree, readcb, writecb, default,
+                          allowedArgins)
 
     @property
     def commands(self):
@@ -692,32 +696,48 @@ def checkCommandWrites(scpiObj):
             if hasattr(subCmdObj, attrFunc):
                 if attrName == 'value':
                     attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
-                                               readcb=subCmdObj.readTest,
-                                               writecb=subCmdObj.writeTest,
-                                               default=True)
+                                                   readcb=subCmdObj.readTest,
+                                                   writecb=subCmdObj.writeTest,
+                                                   default=True)
                 else:
                     cbFunc = getattr(subCmdObj, attrFunc)
                     attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
                                                    cbFunc)
     # print("Command tree build: %r" % (scpiObj._commandTree))
     for i in range(nChannels*2):
-        rndCh = _randint(1,nChannels)
+        rndCh = _randint(1, nChannels)
         element = _randomchoice(['current', 'voltage'])
         doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndCh,
                               element, nChannels)
         _interTestWait()
+    selectionCmd = 'source:selection'
+    selectionObj = WattrTest()
+    selectionObj.writeTest(False)
+    scpiObj.addCommand(selectionCmd, readcb=selectionObj.readTest,
+                       writecb=selectionObj.writeTest,
+                       allowedArgins=[True, False])
+    doWriteCommand(scpiObj, selectionCmd, True)
+    try:
+        doWriteCommand(scpiObj, selectionCmd, 0)
+    except:
+        pass
+    else:
+        raise AssertionError("It has been write a value that "
+                             "should not be allowed")
+    _interTestWait()
     _printFooter("Command queries test PASSED")
 
 
-def doWriteCommand(scpiObj, cmd):
+def doWriteCommand(scpiObj, cmd, value=None):
     # first read ---
     answer1 = scpiObj.input("%s?" % cmd)
     print("\tRequested %s initial value: %r" % (cmd, answer1))
     # then write ---
-    value = _randint(-1000,1000)
-    while value == int(answer1.strip()):
-        value = _randint(-1000,1000)
-    answer2 = scpiObj.input("%s %s" % (cmd,value))
+    if value is None:
+        value = _randint(-1000, 1000)
+        while value == int(answer1.strip()):
+            value = _randint(-1000, 1000)
+    answer2 = scpiObj.input("%s %s" % (cmd, value))
     print("\tWrite %s value: %s, answer: %r" % (cmd, value, answer2))
     # read again ---
     answer3 = scpiObj.input("%s?" % cmd)
@@ -731,17 +751,17 @@ def doWriteChannelCommand(scpiObj, pre, inner, post, nCh):
     # first read all the channels ---
     maskCmd = "%sNN:%s" % (pre, post)
     rCmd = ''.join("%s%s:%s?;" % (pre, str(ch).zfill(2), post)
-                   for ch in range(1,nCh+1))
+                   for ch in range(1, nCh+1))
     answer1 = scpiObj.input("%s" % rCmd)
     toModify = answer1.strip().split(';')[inner-1]
-    value = _randint(-1000,1000)
+    value = _randint(-1000, 1000)
     while value == int(toModify):
-        value = _randint(-1000,1000)
+        value = _randint(-1000, 1000)
     print("\tRequested %s initial values: %r (highlight %s:%s)"
           % (maskCmd, answer1, inner, toModify))
     # then write the specified one ---
     wCmd = "%s%s:%s" % (pre, str(inner).zfill(2), post)
-    answer2 = scpiObj.input("%s %s" % (wCmd,value))
+    answer2 = scpiObj.input("%s %s" % (wCmd, value))
     print("\tWrite %s value: %s, answer: %r" % (wCmd, value, answer2))
     # read again all of them ---
     answer3 = scpiObj.input("%s" % rCmd)
@@ -814,11 +834,11 @@ def checkArrayAnswers(scpiObj):
     scpiObj.addCommand(attrCmd, readcb=longTest.readTest)
     # current
     CurrentObj = ArrayTest(5)
-    CurrentCmd = "%s:current:%s" % (baseCmd,attrCmd)
+    CurrentCmd = "%s:current:%s" % (baseCmd, attrCmd)
     scpiObj.addCommand(CurrentCmd, readcb=CurrentObj.readTest)
     # voltage
     VoltageObj = ArrayTest(5)
-    VoltageCmd = "%s:voltage:%s" % (baseCmd,attrCmd)
+    VoltageCmd = "%s:voltage:%s" % (baseCmd, attrCmd)
     scpiObj.addCommand(VoltageCmd, readcb=VoltageObj.readTest)
     # queries
     answer = scpiObj.input(attrCmd + '?')
@@ -875,9 +895,14 @@ def _buildCommand2Test():
 
 def main():
     import traceback
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option('', "--debug", action="store_true", default=False,
+                      help="Set the debug flag")
+    (options, args) = parser.parse_args()
     for test in [testScpi]:
         try:
-            test()
+            test(options.debug)
         except Exception as e:
             msg = "Test failed!"
             border = "*"*len(msg)

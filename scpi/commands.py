@@ -141,6 +141,7 @@ class Attribute(DictKey):
         self._write_cb = None
         self._hasChannels = False
         self._nComponentsWithChannels = 0
+        self._allowedArgins = None
 
     def __str__(self):
         repr = "%s" % (self._name)
@@ -173,6 +174,20 @@ class Attribute(DictKey):
     @property
     def nComponentsWithChannels(self):
         return self._nComponentsWithChannels
+
+    @property
+    def allowedArgins(self):
+        return self._allowedArgins
+
+    @allowedArgins.setter
+    def allowedArgins(self, value):
+        # TODO: also than an specific set of values, provide a way to restrict
+        #       argins in a bounded region. Like a range (or ranges) of values.
+        if value is not None and type(value) is not list:
+            raise TypeError("Allowed argins expects a list")
+        self._allowedArgins = []
+        for element in value:
+            self._allowedArgins.append(str(element))
 
     def checkChannels(self):
         parent = self.parent
@@ -249,6 +264,10 @@ class Attribute(DictKey):
     def write(self, chlst=None, value=None):
         self._debug("%s.write(ch=%s, value=%s)" % (self.name, chlst, value))
         if self._write_cb is not None:
+            if self.allowedArgins is not None and \
+                    value not in self.allowedArgins:
+                raise ValueError("Not allowed to write %s, only %s "
+                                 "are accepted" % (value, self.allowedArgins))
             if self.hasChannels and chlst is not None:
                 if len(chlst) == 1:
                     ch = chlst[0]
@@ -266,7 +285,8 @@ class Attribute(DictKey):
             return retValue
 
 
-def BuildAttribute(name, parent, readcb=None, writecb=None, default=False):
+def BuildAttribute(name, parent, readcb=None, writecb=None, default=False,
+                   allowedArgins=None):
     attr = Attribute(name)
     attr.parent = parent
     if parent is not None and name is not None:
@@ -275,6 +295,8 @@ def BuildAttribute(name, parent, readcb=None, writecb=None, default=False):
     attr.write_cb = writecb
     if default:
         parent.default = name
+    if allowedArgins:
+        attr.allowedArgins = allowedArgins
     attr.checkChannels()
     return attr
 
@@ -674,7 +696,7 @@ class WchannelTest(ChannelTest):
 
     def readTest(self, ch):
         return self._value[ch-1]
-    
+
     def writeTest(self, ch, value):
         self._value[ch-1] = value
 
