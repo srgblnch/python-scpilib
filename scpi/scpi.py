@@ -497,11 +497,11 @@ def testScpi(debug=False):
         for test in [checkIDN,
                      addInvalidCmds,
                      addValidCommands,
-                     #checkCommandQueries,
-                     #checkCommandWrites,
-                     #checkNonexistingCommands,
+                     checkCommandQueries,
+                     checkCommandWrites,
+                     checkNonexistingCommands,
                      checkArrayAnswers,
-                     #checkMultipleCommands
+                     checkMultipleCommands
                      ]:
             test(scpiObj)
             _afterTestWait()
