@@ -54,6 +54,8 @@ except:
     _sp = False
     _sp_ndarray = list
 
+from struct import pack as _pack
+
 MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
 
@@ -64,6 +66,7 @@ class DictKey(_Logger, str):
         the shorter strings allowed in the scpi specs.
     '''
     def __init__(self, value, *args, **kargs):
+        value = "%s" % value
         super(DictKey, self).__init__(*args, **kargs)
         if not value.isalpha():
             raise NameError("key shall be strictly alphabetic")
@@ -188,6 +191,10 @@ class Attribute(DictKey):
         self._allowedArgins = []
         for element in value:
             self._allowedArgins.append(str(element))
+        # TODO: those strings shall also follow the key length feature
+        #       if the length string is at least the minimum.
+        #       This is like 'FALSe' == 'FALS' in scpi
+        #       replace 'str' by 'DictKey'
 
     def checkChannels(self):
         parent = self.parent
@@ -227,14 +234,20 @@ class Attribute(DictKey):
             else:
                 retValue = self._read_cb()
                 self._debug("Attribute %s read: %s" % (self.name, retValue))
-            # if answer is a list, manipulate it to follow the rule
-            # '#NMMMMMMMMM...\n'
-            if type(retValue) in [list, _np_ndarray, _sp_ndarray]:
-                retValue = self._convertArray(retValue)
-            return retValue
+            return self._checkArray(retValue)
+
+    def _checkArray(self, argin):
+        # if answer is a list, manipulate it to follow the rule
+        # '#NMMMMMMMMM...\n'
+        if type(argin) in [list, _np_ndarray, _sp_ndarray]:
+            argout = self._convertArray(argin)
+            return argout
+        return argin
 
     def _convertArray(self, argin):
-        # TODO: flat the array
+        root = self._getRootComponent()
+        dataFormat = root['dataFormat'].read()
+        # flat the array
         if type(argin) in [_np_ndarray, _sp_ndarray]:
             flattened = argin.flatten()
         else:
@@ -246,12 +259,22 @@ class Attribute(DictKey):
             self._error("A %s array cannot be codified" % (lenght))
             return float("NaN")
         header = "#%1s%s" % (firstField, lenght)
-        data = "".join("%s," % element for element in flattened)[:-1]
-        # TODO: binary data (with single precision):
-        #       ''.join(struct.pack('f', element) for element in flattened)
+        if dataFormat == 'ASCII':
+            data = "".join("%s," % element for element in flattened)[:-1]
+        elif dataFormat == 'SINGLE':
+            data = ''.join(_pack('f', element) for element in flattened)
+        else:
+            raise NotImplementedError("Unexpected data format %s codification"
+                                      % (dataFormat))
         # TODO: half-precision and mini-precision (byte)
         # FIXME: does this have sense with double precision?
         return header + data
+
+    def _getRootComponent(self):
+        candidate = self._parent
+        while candidate._parent is not None:
+            candidate = candidate._parent
+        return candidate
 
     @property
     def write_cb(self):

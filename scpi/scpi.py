@@ -107,6 +107,15 @@ class scpi(_Logger):
         if autoOpen:
             self.open()
         scpiObjects.append(self)
+        self._dataFormat = 'ASCII'
+        self.addAttribute('DataFormat', self._commandTree,
+                          self.dataFormat, self.dataFormat,
+                          allowedArgins=['ASCII', 'SINGLE'])
+
+    def dataFormat(self, value=None):
+        if value is None:
+            return self._dataFormat
+        self._dataFormat = value
 
     # TODO: status information method
     # (report the open listeners and accepted connections ongoing).
@@ -488,11 +497,11 @@ def testScpi(debug=False):
         for test in [checkIDN,
                      addInvalidCmds,
                      addValidCommands,
-                     checkCommandQueries,
-                     checkCommandWrites,
-                     checkNonexistingCommands,
+                     #checkCommandQueries,
+                     #checkCommandWrites,
+                     #checkNonexistingCommands,
                      checkArrayAnswers,
-                     checkMultipleCommands
+                     #checkMultipleCommands
                      ]:
             test(scpiObj)
             _afterTestWait()
@@ -733,6 +742,8 @@ def checkCommandWrites(scpiObj):
                        writecb=selectionObj.writeTest,
                        allowedArgins=[True, False])
     doWriteCommand(scpiObj, selectionCmd, True)
+    # doWriteCommand(scpiObj, selectionCmd, 'Fals')
+    # doWriteCommand(scpiObj, selectionCmd, 'True')
     try:
         doWriteCommand(scpiObj, selectionCmd, 0)
     except:
@@ -880,12 +891,12 @@ def checkArrayAnswers(scpiObj):
     VoltageCmd = "%s:voltage:%s" % (baseCmd, attrCmd)
     scpiObj.addCommand(VoltageCmd, readcb=VoltageObj.readTest)
     # queries
-    answer = scpiObj.input(attrCmd + '?')
-    print("\tRequest %s \n\tAnswer: %r" % (attrCmd, answer))
-    answer = scpiObj.input(CurrentCmd + '?')
-    print("\tRequest %s \n\tAnswer: %r" % (CurrentCmd, answer))
-    answer = scpiObj.input(VoltageCmd + '?')
-    print("\tRequest %s \n\tAnswer: %r" % (VoltageCmd, answer))
+    for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
+        for format in ['ASCII', 'SINGLE']:
+            scpiObj.input("DataFormat %s" % (format))
+            answer = scpiObj.input(cmd + '?')
+            print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
+                                                            len(answer)))
     _printFooter("Array answers test PASSED")
 
 
