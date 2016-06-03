@@ -1,9 +1,0 @@
-* Channels!
-  Support components with a second part of the name where it have a sequence number.
-  For example, support commands like ":MEASure:CHANnel1:VOLTage?"
-  Now they cannot be set (partially because numbers are forbbiden) because the shorted name of two channels will collide:
-    ":MEASure:CHANnel1:VOLTage?" -> ":MEAS:CHAN:VOLT?"
-    ":MEASure:CHANnel2:VOLTage?" -> ":MEAS:CHAN:VOLT?"
-  When they have to be:
-    ":MEASure:CHANnel1:VOLTage?" -> ":MEAS:CHAN1:VOLT?"
-    ":MEASure:CHANnel2:VOLTage?" -> ":MEAS:CHAN2:VOLT?"
