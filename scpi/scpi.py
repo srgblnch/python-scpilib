@@ -911,7 +911,7 @@ def checkMultipleCommands(scpiObj):
         cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
         start_t = _time()
         answer = scpiObj.input(cmds)
-        nAnswers = len(answer.split(';'))
+        nAnswers = len(_cutMultipleAnswer(answer))
         log.append(_time() - start_t)
         print("\tRequest %d attributes in a single query: \n%s\tAnswer: "
               "%r (%d, %g ms)\n" % (i, cmdsSplitted, answer, nAnswers,
@@ -922,6 +922,27 @@ def checkMultipleCommands(scpiObj):
         _interTestWait()
     _printFooter("Many commands per query test PASSED")
     # TODO: multiple writes
+
+
+def _cutMultipleAnswer(answerStr):
+    answerStr = answerStr.strip()
+    answersLst = []
+    while len(answerStr) != 0:
+        if answerStr[0] == '#':
+            if answerStr.count(';'):
+                one, answerStr = answerStr.split('\n;',1)
+            else:
+                one = answerStr
+                answerStr = ''
+            answersLst.append(one)
+        else:
+            if answerStr.count(';'):
+                one, answerStr = answerStr.split(';',1)
+            else:  # the last element
+                one = answerStr
+                answerStr = ''
+            answersLst.append(one)
+    return answersLst
 
 
 def _buildCommand2Test():

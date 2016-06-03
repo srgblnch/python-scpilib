@@ -262,7 +262,7 @@ class Attribute(DictKey):
         if dataFormat == 'ASCII':
             data = "".join("%s," % element for element in flattened)[:-1]
         elif dataFormat == 'SINGLE':
-            data = ''.join(_pack('f', element) for element in flattened)
+            data = ''.join(_pack('f', element) for element in flattened) + '\n'
         else:
             raise NotImplementedError("Unexpected data format %s codification"
                                       % (dataFormat))
