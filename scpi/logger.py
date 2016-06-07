@@ -52,12 +52,17 @@ class Logger(object):
         self._debugFlag = debug
 
     @property
+    def name(self):
+        return self._name
+
+    @property
     def depth(self):
         depth = 0
-        parent = self._parent
-        while parent is not None:
-            parent = parent._parent
-            depth += 1
+        if hasattr(self, '_parent'):
+            parent = self._parent
+            while parent is not None:
+                parent = parent._parent
+                depth += 1
         return depth
 
     @property
