@@ -42,13 +42,13 @@ class TcpListener(_Logger):
     """
     # FIXME: default should be local=False
     def __init__(self, name=None, callback=None, local=True, port=5025,
-                 maxlisteners=_MAX_CLIENTS, ipv6=True, debug=False):
-        super(TcpListener, self).__init__(debug)
+                 maxClients=_MAX_CLIENTS, ipv6=True, debug=False):
+        super(TcpListener, self).__init__(debug=debug)
         self._name = name or "TcpListener"
         self._callback = callback
         self._local = local
         self._port = port
-        self._maxlisteners = maxlisteners
+        self._maxClients = maxClients
         self._joinEvent = _threading.Event()
         self._joinEvent.clear()
         self._connectionThreads = {}
@@ -85,6 +85,7 @@ class TcpListener(_Logger):
             _gccollect()
             self._debug("Waiting for Listener threads")
             _sleep(1)
+        self._debug("Everything is close, exiting...")
 
     @property
     def port(self):
@@ -169,10 +170,10 @@ class TcpListener(_Logger):
         while tries < maxretries:
             try:
                 scpisocket.bind((scpihost, self._port))
-                scpisocket.listen(self._maxlisteners)
+                scpisocket.listen(self._maxClients)
                 self._debug("Listener thread up and running (port %d, with "
                             "a maximum of %d connections in parallel)."
-                            % (self._port, self._maxlisteners))
+                            % (self._port, self._maxClients))
                 return True
             except Exception as e:
                 tries += 1
@@ -208,14 +209,22 @@ class TcpListener(_Logger):
             return bool(self._scpi_ipv6.fileno())
         return False
 
+    @property
+    def nActiveConnections(self):
+        return len(self._connectionThreads)
+
     def __launchConnection(self, address, connection):
         connectionName = '%s:%s' % (address[0], address[1])
         try:
-            self._debug('Connection request from %s' % (connectionName))
+            self._debug('Connection request from %s (having %d already active)'
+                        % (connectionName, self.nActiveConnections))
             if connectionName in self._connectionThreads and \
                     self._connectionThreads[connectionName].isAlive():
                 self.error("New connection from %s when it has already "
                            "one. refusing the newer." % (connectionName))
+            elif self.nActiveConnections >= self._maxClients:
+                self._error("Reached the maximum number of allowed "
+                            "connections (%d)" % (self.nActiveConnections))
             else:
                 self._connectionThreads[connectionName] = \
                     _threading.Thread(name=connectionName,
@@ -228,15 +237,19 @@ class TcpListener(_Logger):
                         % (connectionName, e))
 
     def __connection(self, address, connection):
-        self._debug("Thread for %s:%s connection" % (address[0], address[1]))
+        connectionName = '%s:%s' % (address[0], address[1])
+        self._debug("Thread for %s connection" % (connectionName))
         while not self._joinEvent.isSet():
             data = connection.recv(1024)
             self._debug("received %d bytes" % (len(data)))
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
                 connection.close()
-                return
+                break
             if self._callback is not None:
                 ans = self._callback(data)
                 self._debug("skippy.input say %r" % (ans))
                 connection.send(ans)
+        self._connectionThreads.pop(connectionName)
+        self._debug("Ending connection: %s (having %s active)"
+                    % (connectionName, self.nActiveConnections))
