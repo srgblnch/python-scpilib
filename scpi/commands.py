@@ -859,7 +859,10 @@ class ArrayTest:
 
     def readTest(self):
         if _np:
-            return _np_randomArray(self._length)
+            multiplier = 1/_float128(_np_randomArray())
+            shifter = 1/_float128(_np_randomArray())
+            elements = _np_randomArray(self._length).astype(_float128)
+            return (multiplier * elements) + shifter
         else:
             lst = []
             for i in range(self._length):
