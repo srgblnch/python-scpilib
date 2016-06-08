@@ -99,7 +99,8 @@ class scpi(_Logger):
         self._dataFormat = 'ASCII'
         self.addAttribute('DataFormat', self._commandTree,
                           self.dataFormat, self.dataFormat,
-                          allowedArgins=['ASCII', 'SINGLE'])
+                          allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
+                                         'SINGLE', 'HALF'])
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -319,7 +320,8 @@ class scpi(_Logger):
         self._debug("Answer: %r" % (answer))
         self._debug("Query reply send after %g ms" % ((_time()-start_t)*1000))
         # FIXME: has the last character to be ';'?
-        return answer[:-1]+'\r\n'
+        # return answer[:-1]+'\r\n'
+        return answer + '\r\n'
 
     def _process_special_command(self, cmd):
         start_t = _time()
@@ -775,7 +777,7 @@ def doWriteCommand(scpiObj, cmd, value=None):
     # then write ---
     if value is None:
         value = _randint(-1000, 1000)
-        while value == int(answer1.strip()):
+        while value == int(answer1.strip()[:-1]):
             value = _randint(-1000, 1000)
     answer2 = scpiObj.input("%s %s" % (cmd, value))
     print("\tWrite %s value: %s, answer: %r" % (cmd, value, answer2))
@@ -904,12 +906,19 @@ def checkArrayAnswers(scpiObj):
     VoltageCmd = "%s:voltage:%s" % (baseCmd, attrCmd)
     scpiObj.addCommand(VoltageCmd, readcb=VoltageObj.readTest)
     # queries
+    answersLengths = {}
     for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
-        for format in ['ASCII', 'SINGLE']:
+        for format in ['ASCII', 'QUADRUPLE', 'DOUBLE', 'SINGLE', 'HALF']:
             scpiObj.input("DataFormat %s" % (format))
             answer = scpiObj.input(cmd + '?')
             print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
                                                             len(answer)))
+            if format not in answersLengths:
+                answersLengths[format] = []
+            answersLengths[format].append(len(answer))
+    print("\n\tanswer lengths summary: %s"
+          % "".join('\n\t\t{}:{}'.format(k, v)
+                    for k, v in answersLengths.iteritems()))
     _printFooter("Array answers test PASSED")
 
 
@@ -942,7 +951,7 @@ def _cutMultipleAnswer(answerStr):
     answersLst = []
     while len(answerStr) != 0:
         if answerStr[0] == '#':
-            if answerStr.count(';'):
+            if answerStr.count('\n;'):
                 one, answerStr = answerStr.split('\n;', 1)
             else:
                 one = answerStr

@@ -31,6 +31,7 @@ __license__ = "GPLv3+"
     optional) for the actions.
 '''
 
+
 try:
     from .logger import Logger as _Logger
     from .version import version as _version
@@ -38,23 +39,41 @@ except:
     from logger import Logger as _Logger
     from version import version as _version
 
+
 try:
     from numpy import ndarray as _np_ndarray
-    from numpy.random import random as _np_randomArray
+    from numpy import float16 as _np_float16
+    from numpy import float32 as _np_float32
+    from numpy import float64 as _np_float64
+    from numpy import float128 as _np_float128
     _np = True
 except:
     _np = False
-    _np_ndarray = list
-    from random import random
+
 
 try:
     from scipy import ndarray as _sp_ndarray
+    from scipy import float16 as _sp_float16
+    from scipy import float32 as _sp_float32
+    from scipy import float64 as _sp_float64
+    from scipy import float128 as _sp_float128
     _sp = True
 except:
     _sp = False
-    _sp_ndarray = list
+
+if _np and not _sp:
+    _float16 = _np_float16
+    _float32 = _np_float32
+    _float64 = _np_float64
+    _float128 = _np_float128
+elif _sp:
+    _float16 = _sp_float16
+    _float32 = _sp_float32
+    _float64 = _sp_float64
+    _float128 = _sp_float128
 
 from struct import pack as _pack
+
 
 MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
@@ -239,7 +258,20 @@ class Attribute(DictKey):
     def _checkArray(self, argin):
         # if answer is a list, manipulate it to follow the rule
         # '#NMMMMMMMMM...\n'
-        if type(argin) in [list, _np_ndarray, _sp_ndarray]:
+        isList = (type(argin) == list)
+        isNpArray = None
+        isSpArray = None
+        if _np:
+            if isList:
+                argin = _np_ndarray(argin)
+                isList = False
+            isNpArray = (type(argin) == _np_ndarray)
+        if _sp:
+            isSpArray = (type(argin) == _sp_ndarray)
+            if isList:
+                argin = _sp_ndarray(argin)
+                isList = False
+        if isNpArray or isSpArray:
             argout = self._convertArray(argin)
             return argout
         return argin
@@ -247,11 +279,8 @@ class Attribute(DictKey):
     def _convertArray(self, argin):
         root = self._getRootComponent()
         dataFormat = root['dataFormat'].read()
-        # flat the array
-        if type(argin) in [_np_ndarray, _sp_ndarray]:
-            flattened = argin.flatten()
-        else:
-            flattened = argin
+        # flat the array, dimensions shall be known by the receiver
+        flattened = argin.flatten()
         # prepare the header
         lenght = str(len(flattened))
         firstField = str(len(lenght))
@@ -259,15 +288,23 @@ class Attribute(DictKey):
             self._error("A %s array cannot be codified" % (lenght))
             return float("NaN")
         header = "#%1s%s" % (firstField, lenght)
+        # codification
         if dataFormat == 'ASCII':
             data = "".join("%s," % element for element in flattened)[:-1]
+        elif dataFormat == 'QUADRUPLE':
+            data = flattened.astype(_float128).tostring() + '\n'
+        elif dataFormat == 'DOUBLE':
+            data = flattened.astype(_float64).tostring() + '\n'
         elif dataFormat == 'SINGLE':
-            data = ''.join(_pack('f', element) for element in flattened) + '\n'
+            data = flattened.astype(_float32).tostring() + '\n'
+        elif dataFormat == 'HALF':
+            data = flattened.astype(_float16).tostring() + '\n'
+        # TODO: mini-precision (byte)
+        # elif dataFormat == 'mini':
+        #     pass
         else:
             raise NotImplementedError("Unexpected data format %s codification"
                                       % (dataFormat))
-        # TODO: half-precision and mini-precision (byte)
-        # FIXME: does this have sense with double precision?
         return header + data
 
     def _getRootComponent(self):
@@ -557,13 +594,14 @@ def BuildChannel(name=None, howMany=None, parent=None):
         parent[name] = channel
     return channel
 
-
-# ---- TEST AREA
+###############################################################################
+# TEST AREA ---
 try:
     from .logger import printHeader
 except:
     from logger import printHeader
-from random import randint
+from random import randint, random
+from numpy.random import random as _np_randomArray
 nChannels = 8
 nSubchannels = nChannels*2
 
