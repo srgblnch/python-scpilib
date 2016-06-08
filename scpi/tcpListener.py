@@ -56,6 +56,17 @@ class TcpListener(_Logger):
         self.open()
         self._debug("Listener thread prepared")
 
+    def __enter__(self):
+        self._debug("received a enter() request")
+        if not self.isOpen:
+            self.open()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._debug("received a exit(%s,%s,%s) request"
+                    % (type, value, traceback))
+        self.__del__()
+
     def __del__(self):
         self.close()
 
@@ -114,6 +125,7 @@ class TcpListener(_Logger):
                                                 target=self.__listener,
                                                 args=(self._scpi_ipv4,
                                                       self._host_ipv4,))
+        self._listener_ipv4.setDaemon(True)
 
     def buildIpv6Socket(self):
         if self._withipv6suport:
@@ -133,6 +145,7 @@ class TcpListener(_Logger):
                                                     target=self.__listener,
                                                     args=(self._scpi_ipv6,
                                                           self._host_ipv6,))
+            self._listener_ipv6.setDaemon(True)
 
     def _shutdownSocket(self, sock):
         try:
@@ -231,6 +244,7 @@ class TcpListener(_Logger):
                                       target=self.__connection,
                                       args=(address, connection))
                 self._debug("Connection for %s created" % (connectionName))
+                self._connectionThreads[connectionName].setDaemon(True)
                 self._connectionThreads[connectionName].start()
         except Exception as e:
             self._error("Cannot launch connection request from %s due to: %s"
@@ -251,5 +265,5 @@ class TcpListener(_Logger):
                 self._debug("skippy.input say %r" % (ans))
                 connection.send(ans)
         self._connectionThreads.pop(connectionName)
-        self._debug("Ending connection: %s (having %s active)"
+        self._debug("Ending connection: %s (having %s active left)"
                     % (connectionName, self.nActiveConnections))

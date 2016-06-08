@@ -24,7 +24,6 @@ __license__ = "GPLv3+"
 __all__ = ["scpi"]
 
 
-import atexit
 try:
     from .commands import Component, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, AttrTest, ArrayTest
@@ -41,25 +40,17 @@ except:
     from logger import Logger as _Logger
     from tcpListener import TcpListener
     from version import version as _version
+
+
 from time import sleep as _sleep
 from time import time as _time
+from threading import currentThread as _currentThread
 from traceback import print_exc
 
-from threading import currentThread as _currentThread
 
 # DEPRECATED: flags for service activation
 TCPLISTENER_LOCAL = 0b10000000
 TCPLISTENER_REMOTE = 0b01000000
-
-
-global scpiObjects
-scpiObjects = []
-
-
-@atexit.register
-def doOnExit():
-    for obj in scpiObjects:
-        obj.close()
 
 
 def __version__():
@@ -84,7 +75,6 @@ class scpi(_Logger):
        can be called once the object is created by setting the object property
        'remoteAllowed' to True.
     '''
-    # TODO: other incoming channels than network
     def __init__(self, commandTree=None, specialCommands=None,
                  local=True, port=5025, autoOpen=False, debug=False,
                  services=None):
@@ -106,19 +96,10 @@ class scpi(_Logger):
                 self._local = bool(services & TCPLISTENER_LOCAL)
         if autoOpen:
             self.open()
-        scpiObjects.append(self)
         self._dataFormat = 'ASCII'
         self.addAttribute('DataFormat', self._commandTree,
                           self.dataFormat, self.dataFormat,
                           allowedArgins=['ASCII', 'SINGLE'])
-
-    def dataFormat(self, value=None):
-        if value is None:
-            return self._dataFormat
-        self._dataFormat = value
-
-    # TODO: status information method
-    # (report the open listeners and accepted connections ongoing).
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -129,22 +110,27 @@ class scpi(_Logger):
     def __exit__(self, type, value, traceback):
         self._debug("received a exit(%s,%s,%s) request"
                     % (type, value, traceback))
-        self.__del__()
+        if self.isOpen:
+            self.close()
 
     def __del__(self):
         self._debug("Delete request received")
         if self.isOpen:
-            if scpiObjects.count(self):
-                scpiObjects.pop(scpiObjects.index(self))
             self.close()
 
     def __str__(self):
-        return "%r" % (self)
+        return "%s" % (self.name)
 
     def __repr__(self):
         if 'idn' in self._specialCmds:
-            return "scpi(%s)" % (self._specialCmds['idn'].read())
-        return "scpi()"
+            return "%s(%s)" % (self.name, self._specialCmds['idn'].read())
+        return "%s()" % self.name
+
+    # # communications ares ---
+
+    # TODO: status information method ---
+    #       (report the open listeners and accepted connections ongoing).
+    # TODO: other incoming channels than network ---
 
     @property
     def isOpen(self):
@@ -152,11 +138,21 @@ class scpi(_Logger):
                     for key in self._services.keys()])
 
     def open(self):
-        self.__buildTcpListener()
+        if not self.isOpen:
+            self.__buildTcpListener()
+        else:
+            self._warning("Already Open")
 
     def close(self):
-        for key in self._services.keys():
-            self._services[key].close()
+        if self.isOpen:
+            self._debug("Close services")
+            for key in self._services.keys():
+                self._debug("Close service %s" % key)
+                self._services[key].close()
+                self._services.pop(key)
+            self._debug("Communications finished. Exiting...")
+        else:
+            self._warning("Already Close")
 
     def __buildTcpListener(self):
         self._debug("Opening tcp listener (%s)"
@@ -190,6 +186,10 @@ class scpi(_Logger):
                 self.__buildTcpListener(TCPLISTENER_LOCAL)
         else:
             self._debug("Nothing to do when setting like it was.")
+
+    # done communications area ---
+
+    # # command introduction area ---
 
     def addSpecialCommand(self, name, readcb, writecb=None):
         '''
@@ -273,6 +273,10 @@ class scpi(_Logger):
                 tree = tree[part]
         self.addAttribute(nameParts[-1], tree, readcb, writecb, default,
                           allowedArgins)
+
+    # done command introduction area ---
+
+    # # input/output area ---
 
     @property
     def commands(self):
@@ -408,6 +412,13 @@ class scpi(_Logger):
                     % (cmd, (_time()-start_t)*1000))
         return answer
 
+    def dataFormat(self, value=None):
+        if value is None:
+            return self._dataFormat
+        self._dataFormat = value
+
+    # input/output area ---
+
 
 # ---- TEST AREA
 try:
@@ -417,6 +428,8 @@ except:
     from logger import printHeader as _printHeader
     from logger import printFooter as _printFooter
     from commands import nChannels, nSubchannels
+
+
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
@@ -930,14 +943,14 @@ def _cutMultipleAnswer(answerStr):
     while len(answerStr) != 0:
         if answerStr[0] == '#':
             if answerStr.count(';'):
-                one, answerStr = answerStr.split('\n;',1)
+                one, answerStr = answerStr.split('\n;', 1)
             else:
                 one = answerStr
                 answerStr = ''
             answersLst.append(one)
         else:
             if answerStr.count(';'):
-                one, answerStr = answerStr.split(';',1)
+                one, answerStr = answerStr.split(';', 1)
             else:  # the last element
                 one = answerStr
                 answerStr = ''
