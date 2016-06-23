@@ -226,7 +226,7 @@ class scpi(_Logger):
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildComponent(name, parent)
 
-    def addChannel(self, name, howMany, parent):
+    def addChannel(self, name, howMany, parent, startWith=1):
         if not hasattr(parent, 'keys'):
             raise TypeError("For %s, parent doesn't accept components"
                             % (name))
@@ -234,7 +234,7 @@ class scpi(_Logger):
             self._debug("component '%s' already exist" % (name))
             return
         self._debug("Adding component '%s' (%s)" % (name, parent))
-        return BuildChannel(name, howMany, parent)
+        return BuildChannel(name, howMany, parent, startWith)
 
     def addAttribute(self, name, parent, readcb, writecb=None, default=False,
                      allowedArgins=None):
@@ -282,6 +282,11 @@ class scpi(_Logger):
     @property
     def commands(self):
         return self._commandTree.keys()
+
+    def dataFormat(self, value=None):
+        if value is None:
+            return self._dataFormat
+        self._dataFormat = value
 
     def input(self, line):
         self._debug("Received %r input" % (line))
@@ -363,48 +368,14 @@ class scpi(_Logger):
         channelNum = []
         for key in keywords:
             self._debug("processing %s" % key)
-            if not key.count(' ') and key[-CHNUMSIZE:].isdigit():
-                channelNum.append(int(key[-CHNUMSIZE:]))
-                self._debug("It has been found that this has channels defined "
-                            "for keyword %s" % (key))
-                key = key[:-CHNUMSIZE]
+            key = self._check4Channels(key, channelNum)
             try:
                 tree = tree[key]
             except Exception as e:
                 if key.endswith('?'):
-                    self._debug("Leaf of the tree %r" % (key[:-1]))
-                    try:
-                        if len(channelNum) > 0:
-                            self._debug("do read with channel")
-                            answer = tree[key[:-1]].read(channelNum)
-                        else:
-                            answer = tree[key[:-1]].read()
-                        # With the support for list readings (its conversion
-                        # to '#NMMMMMMMMM...' stream:
-                        # TODO: This will require a DataFormat feature to
-                        #       pack the data in bytes, shorts or longs.
-                    except Exception as e:
-                        self._warning("Exception reading '%s': %s" % (cmd, e))
-                        answer = float('NaN')
-                        print_exc()
+                    answer = self._doReadOperation(cmd, tree, key, channelNum)
                 elif key.count(' ') == 1:
-                    try:
-                        key, value = key.split(' ')
-                        self._debug("Leaf of the tree %r (%r)" % (key, value))
-                        if len(channelNum) > 0:
-                            self._debug("do write (with channel %s) %s: %s"
-                                        % (channelNum, key, value))
-                            tree[key].write(chlst=channelNum, value=value)
-                            answer = tree[key].read(channelNum)
-                        else:
-                            self._debug("do write %s: %s" % (key, value))
-                            tree[key].write(value=value)
-                            # TODO: there's a SCPI command to inhibit this read
-                            answer = tree[key].read()
-                    except Exception as e:
-                        self._warning("Exception writing '%s': %s" % (cmd, e))
-                        answer = float('NaN')
-                        print_exc()
+                    answer = self._doWriteOperation(cmd, tree, key, channelNum)
                 else:
                     self._error("Not possible to understand key %s (from %s)"
                                 % (key, cmd))
@@ -414,10 +385,51 @@ class scpi(_Logger):
                     % (cmd, (_time()-start_t)*1000))
         return answer
 
-    def dataFormat(self, value=None):
-        if value is None:
-            return self._dataFormat
-        self._dataFormat = value
+    def _check4Channels(self, key, channelNum):
+        if not key.count(' ') and key[-CHNUMSIZE:].isdigit():
+            channelNum.append(int(key[-CHNUMSIZE:]))
+            self._debug("It has been found that this has channels defined "
+                        "for keyword %s" % (key))
+            key = key[:-CHNUMSIZE]
+        return key
+
+    def _doReadOperation(self, cmd, tree, key, channelNum):
+        try:
+            self._debug("Leaf of the tree %r" % (key[:-1]))
+            if len(channelNum) > 0:
+                self._debug("do read with channel")
+                answer = tree[key[:-1]].read(channelNum)
+            else:
+                answer = tree[key[:-1]].read()
+            # With the support for list readings (its conversion
+            # to '#NMMMMMMMMM...' stream:
+            # TODO: This will require a DataFormat feature to
+            #       pack the data in bytes, shorts or longs.
+        except Exception as e:
+            self._warning("Exception reading '%s': %s" % (cmd, e))
+            answer = float('NaN')
+            print_exc()
+        return answer
+
+    def _doWriteOperation(self, cmd, tree, key, channelNum):
+        try:
+            key, value = key.split(' ')
+            self._debug("Leaf of the tree %r (%r)" % (key, value))
+            if len(channelNum) > 0:
+                self._debug("do write (with channel %s) %s: %s"
+                            % (channelNum, key, value))
+                tree[key].write(chlst=channelNum, value=value)
+                answer = tree[key].read(channelNum)
+            else:
+                self._debug("do write %s: %s" % (key, value))
+                tree[key].write(value=value)
+                # TODO: there's a SCPI command to inhibit this read
+                answer = tree[key].read()
+        except Exception as e:
+            self._warning("Exception writing '%s': %s" % (cmd, e))
+            answer = float('NaN')
+            print_exc()
+        return answer
 
     # input/output area ---
 
