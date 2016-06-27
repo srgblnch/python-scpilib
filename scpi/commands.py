@@ -162,16 +162,17 @@ class Attribute(DictKey):
         self._read_cb = None
         self._write_cb = None
         self._hasChannels = False
-        self._nComponentsWithChannels = 0
+        self._channelTree = None
         self._allowedArgins = None
+        self._debug("Build a Attribute object %s" % (self.name))
 
     def __str__(self):
-        repr = "%s" % (self._name)
+        fullName = "%s" % (self._name)
         parent = self._parent
         while parent is not None and parent._name is not None:
-            repr = "".join("%s:%s" % (parent._name, repr))
+            fullName = "".join("%s:%s" % (parent._name, fullName))
             parent = parent._parent
-        return repr
+        return fullName
 
     def __repr__(self):
         indentation = "\t"*self.depth
@@ -194,10 +195,6 @@ class Attribute(DictKey):
         return self._hasChannels
 
     @property
-    def nComponentsWithChannels(self):
-        return self._nComponentsWithChannels
-
-    @property
     def allowedArgins(self):
         return self._allowedArgins
 
@@ -216,19 +213,19 @@ class Attribute(DictKey):
         #       replace 'str' by 'DictKey'
 
     def checkChannels(self):
-        parent = self.parent
-        while parent is not None:
-            if parent.hasChannels:
-                self._hasChannels = True
-                self._debug("%s: Channels found for %s component"
-                            % (self.name, parent.name))
-                self._nComponentsWithChannels += 1
-            parent = parent.parent  # next
-        if self._nComponentsWithChannels == 0:
-            self._debug("%s: No channels found" % (self.name))
+        if self.parent is not None and self.parent.hasChannels:
+            self._hasChannels = True
+            self._channelTree = self._getChannels()
+            self._debug("%s: Channels found for %s component: %s"
+                        % (self.name, self.parent.name,
+                           ["%s" % x.name for x in self._channelTree]))
         else:
-            self._debug("%s: %d parent components with channels found"
-                        % (self.name, self._nComponentsWithChannels))
+            self._debug("%s: No channels found" % (self.name))
+
+    def _getChannels(self):
+        if self.parent is not None and self.parent.hasChannels:
+            return self.parent._getChannels()
+        return None
 
     @property
     def read_cb(self):
@@ -241,19 +238,13 @@ class Attribute(DictKey):
     def read(self, chlst=None):
         if self._read_cb is not None:
             if self.hasChannels and chlst is not None:
-                if len(chlst) == 1:
-                    ch = chlst[0]
-                    retValue = self._read_cb(ch)
-                    self._debug("Attribute %s read from channel %d: %s"
-                                % (self.name, ch, retValue))
-                else:
-                    retValue = self._read_cb(chlst)
-                    self._debug("Attribute %s read for channel set %s: %s"
-                                % (self.name, chlst, retValue))
+                retValue = self._callbackChannels(chlst)
             else:
                 retValue = self._read_cb()
                 self._debug("Attribute %s read: %s" % (self.name, retValue))
             return self._checkArray(retValue)
+
+
 
     def _checkArray(self, argin):
         # if answer is a list, manipulate it to follow the rule
@@ -329,20 +320,47 @@ class Attribute(DictKey):
                 raise ValueError("Not allowed to write %s, only %s "
                                  "are accepted" % (value, self.allowedArgins))
             if self.hasChannels and chlst is not None:
-                if len(chlst) == 1:
-                    ch = chlst[0]
-                    retValue = self._write_cb(ch, value)
-                    self._debug("Attribute %s write %s in channel %d: %s"
-                                % (self.name, value, ch, retValue))
-                else:
-                    retValue = self._write_cb(chlst, value)
-                    self._debug("Attribute %s write %s for channel set %s: %s"
-                                % (self.name, value, chlst, retValue))
+                retValue = self._callbackChannels(chlst, value)
             else:
                 retValue = self._write_cb(value)
                 self._debug("Attribute %s write %s: %s"
                             % (self.name, value, retValue))
             return retValue
+
+    def _callbackChannels(self, chlst, value=None):
+        self._checkAllChannelsAreWithinBoundaries(chlst)
+        if len(chlst) == 1:
+            ch = chlst[0]
+            if value is None:
+                retValue = self._read_cb(ch)
+                self._debug("Attribute %s read from channel %d: %s"
+                            % (self.name, ch, retValue))
+            else:
+                retValue = self._write_cb(ch, value)
+                self._debug("Attribute %s write %s in channel %d: %s"
+                            % (self.name, value, ch, retValue))
+        else:
+            if value is None:
+                retValue = self._read_cb(chlst)
+                self._debug("Attribute %s read for channel set %s: %s"
+                            % (self.name, chlst, retValue))
+            else:
+                retValue = self._write_cb(chlst, value)
+                self._debug("Attribute %s write %s for channel set %s: %s"
+                            % (self.name, value, chlst, retValue))
+        return retValue
+
+    def _checkAllChannelsAreWithinBoundaries(self, chlst):
+        if len(self._channelTree) != len(chlst):
+            raise AssertionError("Given channel list hasn't the same number "
+                                 "of elements than the known in the tree")
+        for i, chRequested in enumerate(chlst):
+            lowerBound = self._channelTree[i].firstChannel
+            upperBound = lowerBound + self._channelTree[i].howManyChannels
+            if chRequested < lowerBound:
+                raise AssertionError("below the bounds")
+            elif chRequested >= upperBound:
+                raise AssertionError("above the bounds")
 
 
 def BuildAttribute(name, parent, readcb=None, writecb=None, default=False,
@@ -373,15 +391,16 @@ class Component(_Logger, dict):
         self._defaultKey = None
         self._howMany = None
         self._hasChannels = False
-        self._nComponentsWithChannels = 0
+        self._channelTree = None
+        self._debug("Build a Component object %s" % (self.name))
 
     def __str__(self):
-        repr = "%s" % (self._name)
+        fullName = "%s" % (self._name)
         parent = self._parent
         while parent is not None and parent._name is not None:
-            repr = "".join("%s:%s" % (parent._name, repr))
+            fullName = "".join("%s:%s" % (parent._name, fullName))
             parent = parent._parent
-        return repr
+        return fullName
 
     def __repr__(self):
         indentation = "\t"*self.depth
@@ -430,30 +449,27 @@ class Component(_Logger, dict):
     def hasChannels(self):
         return self._hasChannels
 
-    @property
-    def nComponentsWithChannels(self):
-        return self._nComponentsWithChannels
-
-    @property
-    def isChanneled(self):
-        itis = self._howMany is not None
-        self._debug("isChanneled = %s" % itis)
-        return itis
+    # TODO: as any Attribute object will search for its channels in its parent
+    #       component, as well as the components will search for channels also
+    #       over their parents, and they are build from root to leafs:
+    #       - once one finds a component with the channel feature, just copy
+    #         its tree of the above channels already discovered.
+    #       Right now this is following the same path over and over again.
 
     def checkChannels(self):
-        parent = self.parent
-        while parent is not None:
-            if parent.hasChannels:
-                self._hasChannels = True
-                self._debug("%s: Channels found for %s component"
-                            % (self.name, parent.name))
-                self._nComponentsWithChannels += 1
-            parent = parent.parent  # next
-        if self._nComponentsWithChannels == 0:
-            self._debug("%s: No channels found" % (self.name))
+        if self.parent is not None and self.parent.hasChannels:
+            self._hasChannels = True
+            self._channelTree = self._getChannels()
+            self._debug("%s: Channels found for %s component: %s"
+                        % (self.name, self.parent.name,
+                           ["%s" % x.name for x in self._channelTree]))
         else:
-            self._debug("%s: %d parent components with channels found"
-                        % (self.name, self._nComponentsWithChannels))
+            self._debug("%s: No lower level channels found" % (self.name))
+
+    def _getChannels(self):
+        if self.parent is not None and self.parent.hasChannels:
+            return self.parent._getChannels()
+        return None
 
     def __getitem__(self, key):
         '''
@@ -578,20 +594,39 @@ def BuildSpecialCmd(name, parent, readcb, writecb=None):
 
 
 class Channel(Component):
-    def __init__(self, howMany=None, *args, **kargs):
+    def __init__(self, howMany=None, startWith=1, *args, **kargs):
         super(Channel, self).__init__(*args, **kargs)
         if len(str(howMany).zfill(2)) > CHNUMSIZE:
             raise ValueError("The number of channels can not exceed "
                              "%d decimal digits" % (CHNUMSIZE))
         self._howMany = howMany
+        self._startWith = startWith
         self._hasChannels = True
+        self._channelTree = None
+        self._debug("Build a Channel object %s" % (self.name))
+
+    def _getChannels(self):
+        if self.parent is not None and self.parent.hasChannels:
+            parentChannels = self.parent._getChannels()
+            if parentChannels is not None:
+                return parentChannels + [self]
+        return [self]
+
+    @property
+    def howManyChannels(self):
+        return self._howMany
+
+    @property
+    def firstChannel(self):
+        return self._startWith
 
 
-def BuildChannel(name=None, howMany=None, parent=None):
-    channel = Channel(name=name, howMany=howMany)
+def BuildChannel(name=None, howMany=None, parent=None, startWith=1):
+    channel = Channel(name=name, howMany=howMany, startWith=startWith)
     channel.parent = parent
     if parent is not None and name is not None:
         parent[name] = channel
+    channel.checkChannels()
     return channel
 
 ###############################################################################

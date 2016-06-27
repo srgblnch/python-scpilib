@@ -900,6 +900,16 @@ def checkNonexistingCommands(scpiObj):
     answer = scpiObj.input(cmd)
     print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
           % (cmd, answer, (_time()-start_t)*1000))
+    # * Channel below the minimum reference
+    cmd = "CHANnel00:VOLTage:UPPEr?"
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
+    # * Channel above the maximum reference
+    cmd = "CHANnel99:VOLTage:UPPEr?"
+    answer = scpiObj.input(cmd)
+    print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
+          % (cmd, answer, (_time()-start_t)*1000))
     _printFooter("Non-existing commands test PASSED")
 
 
