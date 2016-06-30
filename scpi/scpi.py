@@ -325,8 +325,8 @@ class scpi(_Logger):
         self._debug("Answer: %r" % (answer))
         self._debug("Query reply send after %g ms" % ((_time()-start_t)*1000))
         # FIXME: has the last character to be ';'?
-        # return answer[:-1]+'\r\n'
-        return answer + '\r\n'
+        return answer[:-1]+'\r\n'
+        # return answer + '\r\n'
 
     def _process_special_command(self, cmd):
         start_t = _time()
