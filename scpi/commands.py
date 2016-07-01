@@ -272,30 +272,30 @@ class Attribute(DictKey):
         dataFormat = root['dataFormat'].read()
         # flat the array, dimensions shall be known by the receiver
         flattened = argin.flatten()
-        # prepare the header
-        lenght = str(len(flattened))
-        firstField = str(len(lenght))
-        if len(firstField) > 1:
-            self._error("A %s array cannot be codified" % (lenght))
-            return float("NaN")
-        header = "#%1s%s" % (firstField, lenght)
         # codification
         if dataFormat == 'ASCII':
             data = "".join("%s," % element for element in flattened)[:-1]
         elif dataFormat == 'QUADRUPLE':
-            data = flattened.astype(_float128).tostring() + '\n'
+            data = flattened.astype(_float128).tostring()  # + '\n'
         elif dataFormat == 'DOUBLE':
-            data = flattened.astype(_float64).tostring() + '\n'
+            data = flattened.astype(_float64).tostring()  # + '\n'
         elif dataFormat == 'SINGLE':
-            data = flattened.astype(_float32).tostring() + '\n'
+            data = flattened.astype(_float32).tostring()  # + '\n'
         elif dataFormat == 'HALF':
-            data = flattened.astype(_float16).tostring() + '\n'
+            data = flattened.astype(_float16).tostring()  # + '\n'
         # TODO: mini-precision (byte)
         # elif dataFormat == 'mini':
         #     pass
         else:
             raise NotImplementedError("Unexpected data format %s codification"
                                       % (dataFormat))
+        # prepare the header
+        lenght = str(len(data))
+        firstField = str(len(lenght))
+        if len(firstField) > 1:
+            self._error("A %s array cannot be codified" % (lenght))
+            return float("NaN")
+        header = "#%1s%s" % (firstField, lenght)
         return header + data
 
     def _getRootComponent(self):

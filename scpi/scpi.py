@@ -789,7 +789,7 @@ def doWriteCommand(scpiObj, cmd, value=None):
     # then write ---
     if value is None:
         value = _randint(-1000, 1000)
-        while value == int(answer1.strip()[:-1]):
+        while value == int(answer1.strip()):
             value = _randint(-1000, 1000)
     answer2 = scpiObj.input("%s %s" % (cmd, value))
     print("\tWrite %s value: %s, answer: %r" % (cmd, value, answer2))
@@ -973,12 +973,15 @@ def _cutMultipleAnswer(answerStr):
     answersLst = []
     while len(answerStr) != 0:
         if answerStr[0] == '#':
-            if answerStr.count('\n;'):
-                one, answerStr = answerStr.split('\n;', 1)
-            else:
-                one = answerStr
-                answerStr = ''
-            answersLst.append(one)
+            headerSize = int(answerStr[1])
+            bodySize = int(answerStr[2:headerSize+2])
+            bodyBlock = answerStr[headerSize+2:bodySize+headerSize+2]
+            print("with a headerSize of %d and a bodySize of %s, %d elements "
+                  "in the body" % (headerSize, bodySize, len(bodyBlock)))
+            answerStr = answerStr[2+headerSize+bodySize:]
+            if len(answerStr) > 0:
+                answerStr = answerStr[1:]
+            answersLst.append(bodyBlock)
         else:
             if answerStr.count(';'):
                 one, answerStr = answerStr.split(';', 1)
@@ -986,6 +989,7 @@ def _cutMultipleAnswer(answerStr):
                 one = answerStr
                 answerStr = ''
             answersLst.append(one)
+    print answersLst
     return answersLst
 
 
