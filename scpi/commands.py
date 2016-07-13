@@ -636,7 +636,10 @@ try:
 except:
     from logger import printHeader
 from random import randint, random
-from numpy.random import random as _np_randomArray
+try:
+    from numpy.random import random as _np_randomArray
+except:
+    _np_randomArray = None
 nChannels = 8
 nSubchannels = nChannels*2
 
@@ -893,7 +896,7 @@ class ArrayTest:
         self._length = length
 
     def readTest(self):
-        if _np:
+        if _np and _np_randomArray is not None:
             multiplier = 1/_float128(_np_randomArray())
             shifter = 1/_float128(_np_randomArray())
             elements = _np_randomArray(self._length).astype(_float128)
