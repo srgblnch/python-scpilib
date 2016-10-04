@@ -255,7 +255,8 @@ class TcpListener(_Logger):
         self._debug("Thread for %s connection" % (connectionName))
         while not self._joinEvent.isSet():
             data = connection.recv(1024)
-            self._debug("received %d bytes" % (len(data)))
+            self._info("received from %s: %d bytes %r"
+                       % (connectionName, len(data), data))
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
                 connection.close()
