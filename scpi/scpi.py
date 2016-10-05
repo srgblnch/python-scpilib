@@ -368,39 +368,64 @@ class scpi(_Logger):
         channelNum = []
         for key in keywords:
             self._debug("processing %s" % key)
+            key, separator, params = self._splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
-                tree = tree[key]
-            except Exception as e:
-                if key.endswith('?'):
-                    answer = self._doReadOperation(cmd, tree, key, channelNum)
-                elif key.count(' ') == 1:
-                    answer = self._doWriteOperation(cmd, tree, key, channelNum)
+                nextNode = tree[key]
+                if separator == '?':
+                    answer = self._doReadOperation(cmd, tree, key, channelNum,
+                                                   params)
+                elif separator == ' ':
+                    answer = self._doWriteOperation(cmd, tree, key, channelNum,
+                                                    params)
                 else:
-                    self._error("Not possible to understand key %s (from %s)"
-                                % (key, cmd))
-                    answer = float('NaN')
-                    break
+                    tree = nextNode
+            except Exception as e:
+                self._error("Not possible to understand key %r (from %r) "
+                            "separator %r, params %r"% (key, cmd, separator,
+                                                        params))
+                answer = float('NaN')
+                break
         self._debug("command %s processed in %g ms"
                     % (cmd, (_time()-start_t)*1000))
         return answer
 
+    def _splitParams(self, key):
+        separators = {'?': 'read', ' ': 'write'}
+        for separator in separators.keys():
+            if key.count(separator):
+                key, params = key.split(separator)
+                if len(params) > 0:
+                    self._debug("Found a %s with params: key=%s, params=%s"
+                                % (separators[separator], key, params))
+                    return key, separator, params
+                return key, separator, None
+        return key, None, None
+
     def _check4Channels(self, key, channelNum):
-        if not key.count(' ') and key[-CHNUMSIZE:].isdigit():
+        if key[-CHNUMSIZE:].isdigit():
             channelNum.append(int(key[-CHNUMSIZE:]))
             self._debug("It has been found that this has channels defined "
                         "for keyword %s" % (key))
             key = key[:-CHNUMSIZE]
         return key
 
-    def _doReadOperation(self, cmd, tree, key, channelNum):
+    def _doReadOperation(self, cmd, tree, key, channelNum, params):
         try:
-            self._debug("Leaf of the tree %r" % (key[:-1]))
+            self._debug("Leaf of the tree %r%s"
+                        % (key, " (with params=%s)"%params if params else ""))
             if len(channelNum) > 0:
                 self._debug("do read with channel")
-                answer = tree[key[:-1]].read(channelNum)
+                if params:
+                    answer = tree[key].read(chlst=channelNum,
+                                                 params=params)
+                else:
+                    answer = tree[key].read(chlst=channelNum)
             else:
-                answer = tree[key[:-1]].read()
+                if params:
+                    answer = tree[key].read(params=params)
+                else:
+                    answer = tree[key].read()
             # With the support for list readings (its conversion
             # to '#NMMMMMMMMM...' stream:
             # TODO: This will require a DataFormat feature to
@@ -411,20 +436,19 @@ class scpi(_Logger):
             print_exc()
         return answer
 
-    def _doWriteOperation(self, cmd, tree, key, channelNum):
+    def _doWriteOperation(self, cmd, tree, key, channelNum, params):
         try:
-            key, value = key.split(' ')
-            self._debug("Leaf of the tree %r (%r)" % (key, value))
+            self._debug("Leaf of the tree %r (%r)" % (key, params))
             if len(channelNum) > 0:
                 self._debug("do write (with channel %s) %s: %s"
-                            % (channelNum, key, value))
-                answer = tree[key].write(chlst=channelNum, value=value)
+                            % (channelNum, key, params))
+                answer = tree[key].write(chlst=channelNum, value=params)
                 if answer is None:
                     answer = tree[key].read(channelNum)
             else:
-                self._debug("do write %s: %s" % (key, value))
+                self._debug("do write %s: %s" % (key, params))
                 # TODO: there's a SCPI command to inhibit the answer
-                answer = tree[key].write(value=value)
+                answer = tree[key].write(value=params)
                 if answer is None:
                     answer = tree[key].read()
         except Exception as e:
@@ -524,13 +548,15 @@ def testScpi(debug=False):
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug) as scpiObj:
         for test in [checkIDN,
-                     addInvalidCmds,
-                     addValidCommands,
-                     checkCommandQueries,
-                     checkCommandWrites,
-                     checkNonexistingCommands,
-                     checkArrayAnswers,
-                     checkMultipleCommands
+                    addInvalidCmds,
+                    addValidCommands,
+                    checkCommandQueries,
+                    checkCommandWrites,
+                    checkNonexistingCommands,
+                    checkArrayAnswers,
+                    checkMultipleCommands,
+                    checkReadWithParams,
+                    checkWriteWithoutParams
                      ]:
             test(scpiObj)
             _afterTestWait()
@@ -555,14 +581,14 @@ def addInvalidCmds(scpiObj):
         print("\tNull name test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
-        return
+        return False
     try:
         scpiObj.addCommand("double::colons", readcb=None)
     except NameError as e:
         print("\tDouble colon name test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
-        return
+        return False
     try:
         scpiObj.addCommand("nestedSpecial:*special", readcb=None)
     except NameError as e:
@@ -570,8 +596,9 @@ def addInvalidCmds(scpiObj):
         print("\tNested special command test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception!")
-        return
+        return False
     _printFooter("Invalid commands test PASSED")
+    return True
 
 
 def addValidCommands(scpiObj):
@@ -681,6 +708,7 @@ def addValidCommands(scpiObj):
     print("Command tree build: %r" % (scpiObj._commandTree))
     _printFooter("Valid commands test PASSED")
     # TODO: channels with channels until the attributes
+    return True
 
 
 def checkCommandQueries(scpiObj):
@@ -776,7 +804,8 @@ def checkCommandWrites(scpiObj):
     try:
         doWriteCommand(scpiObj, selectionCmd, 0)
     except:
-        pass
+        print("\tLimitation values succeed because it raises an exception "
+              "as expected")
     else:
         raise AssertionError("It has been write a value that "
                              "should not be allowed")
@@ -969,6 +998,26 @@ def checkMultipleCommands(scpiObj):
     _printFooter("Many commands per query test PASSED")
     # TODO: multiple writes
 
+
+def checkReadWithParams(scpiObj):
+    _printHeader("Attribute read with parameters after the '?'")
+    cmd = 'reader:with:parameters'
+    longTest = ArrayTest(100)
+    scpiObj.addCommand(cmd, readcb=longTest.readRange)
+    scpiObj.input("DataFormat ASCII")
+    for i in range(10):
+        bar, foo = _randint(0, 100), _randint(0, 100)
+        start = min(bar, foo)
+        end = max(bar, foo)
+        cmdWithParams = "%s?%s,%s" % (cmd, start, end)
+        answer = scpiObj.input(cmdWithParams)
+        print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmdWithParams, answer,
+                                                        len(answer)))
+
+
+def checkWriteWithoutParams(scpiObj):
+    _printHeader("Attribute write without parameters")
+    # --- TODO
 
 def _cutMultipleAnswer(answerStr):
     answerStr = answerStr.strip()

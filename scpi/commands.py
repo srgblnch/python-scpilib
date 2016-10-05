@@ -235,16 +235,21 @@ class Attribute(DictKey):
     def read_cb(self, function):
         self._read_cb = function
 
-    def read(self, chlst=None):
+    def read(self, chlst=None, params=None):
+        self._debug("%s read %s, %s" % (self.name, chlst, params))  # FIXME: to be removed
         if self._read_cb is not None:
             if self.hasChannels and chlst is not None:
-                retValue = self._callbackChannels(chlst)
+                if params:
+                    retValue = self._callbackChannels(chlst, params)
+                else:
+                    retValue = self._callbackChannels(chlst)
             else:
-                retValue = self._read_cb()
+                if params:
+                    retValue = self._read_cb(params)
+                else:
+                    retValue = self._read_cb()
                 self._debug("Attribute %s read: %s" % (self.name, retValue))
             return self._checkArray(retValue)
-
-
 
     def _checkArray(self, argin):
         # if answer is a list, manipulate it to follow the rule
@@ -506,9 +511,9 @@ class Component(_Logger, dict):
         dict.__setitem__(self, key, val)
         val.parent = self
 
-    def read(self, chlst=None):
+    def read(self, chlst=None, params=None):
         if self._defaultKey:
-            return self.__getitem__(self._defaultKey).read(chlst)
+            return self.__getitem__(self._defaultKey).read(chlst, params)
         return float('NaN')
 
     def write(self, chlst=None, value=None):
@@ -638,6 +643,7 @@ except:
 from random import randint, random
 try:
     from numpy.random import random as _np_randomArray
+    from numpy import array as _np_array
 except:
     _np_randomArray = None
 nChannels = 8
@@ -906,6 +912,15 @@ class ArrayTest:
             for i in range(self._length):
                 lst.append(random())
             return lst
+
+    def readRange(self, params):
+        start, end = params.split(',')
+        start = int(start)
+        end = int(end)
+        answer = range(start, end+1)
+        if _np and _np_array:
+            answer = _np_array(answer)
+        return answer
 
 
 def testArrayAnswers(output=True):
