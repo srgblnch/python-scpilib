@@ -418,13 +418,15 @@ class scpi(_Logger):
             if len(channelNum) > 0:
                 self._debug("do write (with channel %s) %s: %s"
                             % (channelNum, key, value))
-                tree[key].write(chlst=channelNum, value=value)
-                answer = tree[key].read(channelNum)
+                answer = tree[key].write(chlst=channelNum, value=value)
+                if answer is None:
+                    answer = tree[key].read(channelNum)
             else:
                 self._debug("do write %s: %s" % (key, value))
-                tree[key].write(value=value)
-                # TODO: there's a SCPI command to inhibit this read
-                answer = tree[key].read()
+                # TODO: there's a SCPI command to inhibit the answer
+                answer = tree[key].write(value=value)
+                if answer is None:
+                    answer = tree[key].read()
         except Exception as e:
             self._warning("Exception writing '%s': %s" % (cmd, e))
             answer = float('NaN')
