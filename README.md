@@ -17,10 +17,10 @@ SCPI library is based on these standards, but *doesn't complain them yet*.
 - [x] Listen network connections (only local/loopback or open to an interface).
 - [x] Channels keywords in a command (even more than one channel separation).
 - [x] Array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
+
+## Features requested (Wish/ToDo List)
+
 - [x] data formats for the arrays ('ASCII' but also binary floats with 1, 2, 4 or 8 Byte codification).
-
-## Features requested (ToDo List)
-
 - [ ] List the minimum special commands to be setup for an instrument (hint '*IDN?').
 - [x] support for [IPv6](https://en.wikipedia.org/wiki/IPv6)
 - [x] Enumerate type to the command setters (hint, allowedArgins)
