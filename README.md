@@ -29,6 +29,8 @@ SCPI library is based on these standards, but *doesn't complain them yet*.
 - [x] Read commands with parameters after the '?' separator.
 - [x] Write commands without parameters (no need a ' ' separator).
 - [ ] Lock write access: for one of the clients or internally by the server.
+- [ ] Avoid the internal *Logger* and use the [python logging](https://docs.python.org/2/library/logging.html).
+- [ ] python3
 
 ## Other ideas to study
 
