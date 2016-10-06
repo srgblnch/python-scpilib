@@ -66,8 +66,13 @@ With no paramenter configuration, the object assumes the communication will be
 made by network and *only* listen the localhost (in ipv4 and ipv6). See the 
 help for further information.
 
-Also, a object created this way doesn't have any command to respond. They can 
-be build before and passed to the constructor, or use a command to add:
+The object created doesn't have any command configured, except the ones build 
+internally for its behaviour configuration (That is the '*DataFormat*' and 
+soon the *Write Lock* functionality).
+
+There are some different ways to prepare this object to respond to specific 
+requests. They can be build before and passed to the constructor, or use a 
+command to add:
 
 ```python
 currentObj = AttrTest()
@@ -83,9 +88,16 @@ in the test approach. What the previous code generates are:
 * 'current' as an intermediate node, and 
 * 'upper' a leaf that will be readable and writable.
 
-With this sample code, out object shall be listening on the (loopback) network 
-and sending the string 'SOUR:CURR:UPPE?', we will receive back an string with 
-the representation of the execution of 'currentObj.upperLimit()'.
+```
+SOURce:
+        CURRent:
+                UPPEr
+```
+
+With this sample code, the object shall be listening on the (loopback) network 
+and sending to the port *5025* the string 'SOUR:CURR:UPPE?', we will receive 
+back an string with the representation of the execution of 
+'currentObj.upperLimit()'.
 
 
 ### Special commands
@@ -93,7 +105,7 @@ the representation of the execution of 'currentObj.upperLimit()'.
 There is a set of minimum commands that shall be implemented in any device that
 like to be scpi compiant. Those commands are tagged starting with '*' symbol.
 
-#### Identify yourself
+#### 1) Identify yourself
 
 The most important of them is the identification: '*IDN?'. As it finishes with 
 a '?' symbol, it means a request to the instrument. The answer is a string 
@@ -113,7 +125,26 @@ method that returns the string. Then, to a scpi object one can add it:
 scpiObj.addSpecialCommand('IDN',identity.idn)
 ```
 
-With this one have the most very basic functional scpi listener.
+With this one have the most very basic functional scpi listener. And mandatory 
+for the [Skippy](https://github.com/srgblnch/skippy) Tango device server, 
+because this identification is used to distinguish between the supported 
+instruments to load the corresponding set of commands.
+
+#### 2) Other special commands
+
+This section can be extended but now it is only a list of the excepted 
+mandatory commands that the SCPI shall have (even many commercial products 
+didn't do).
+
+- '*CLS': Clear Status Command
+- '*ESE[?]': Event Status Enable
+- '*ESR?': Event Status Register
+- '*OPC[?]': Operation Complete
+- '*RST': Reset
+- '*SRE[?]': Service Request Enable
+- '*STB?': Status Byte
+- '*TST?': Self-test
+- '*WAI': Wait-to-continue
 
 ## Channels in the instrument
 
