@@ -1,5 +1,5 @@
 # scpi
-Python module to provide scpi functionality to an instrument
+Python module to provide scpi functionality to an instrument under a **GPLv3+** license.
 
 ## [Development Status :: 4 - Beta](https://pypi.python.org/pypi?%3Aaction=list_classifiers)
 
