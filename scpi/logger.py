@@ -73,7 +73,7 @@ class Logger(object):
         with lock:
             when = _datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             print("%s\t%s\t%s\t%s\t%s"
-                  % (self._threadId, type, when, self._name, msg))
+                  % (when, type, self._threadId, self._name, msg))
 
     def _error(self, msg):
         self._print(msg, self._type[_logger_ERROR])
