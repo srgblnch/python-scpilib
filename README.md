@@ -3,25 +3,32 @@ Python module to provide scpi functionality to an instrument
 
 ## [Development Status :: 4 - Beta](https://pypi.python.org/pypi?%3Aaction=list_classifiers)
 
-This code is, by now, only a prove of concept to prepare a python library 
-to provide *scpi commands tree* functionality in the **instrument side**.
+This project has started as a *toy-project* to test the [Skippy](https://github.com/srgblnch/skippy) Tango device server. But it has evolved to become a python library to provide *scpi commands tree* functionality in the **instrument side**.
 
 SCPI library is based on these standards, but *doesn't complain them yet*.
  - [SCPI-99](http://www.ivifoundation.org/docs/scpi-99.pdf)
  - [IEEE 488.2-2004](http://dx.doi.org/10.1109/IEEESTD.2004.95390)
 
+## Basic features
+
+- [x] Command three definition with readonly and read/write attributes.
+- [x] Special commands (hint, they start by '*')
+- [x] Concatenation of commands (hint ';' separator).
+- [x] Listen network connections (only local/loopback or open to an interface).
+- [x] Channels keywords in a command (even more than one channel separation).
+- [x] Array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
+- [x] data formats for the arrays ('ASCII' but also binary floats with 1, 2, 4 or 8 Byte codification).
+
 ## Features requested (ToDo List)
 
-- [x] channels keywords in a command (even more than one channel separation).
-- [x] array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
-- [x] data formats for the arrays ('ASCII' but also binary floats with 1, 2, 4 or 8 Byte codification).
-- [ ] List the minimum special commands to be setup for an instrument.
-- [ ] Enumerate types to the command setters.
-- [ ] More listen channels than network
-- [ ] "autodoc" using the scpi tree
-- [x] Read commands with parameters after the '?' separator
+- [ ] List the minimum special commands to be setup for an instrument (hint '*IDN?').
+- [x] support for [IPv6](https://en.wikipedia.org/wiki/IPv6)
+- [x] Enumerate type to the command setters (hint, allowedArgins)
+- [ ] Listen more channels than network.
+- [ ] "autodoc" using the scpi tree.
+- [x] Read commands with parameters after the '?' separator.
 - [x] Write commands without parameters (no need a ' ' separator).
-- [ ] Lock write access: for one of the clients or internally by the server
+- [ ] Lock write access: for one of the clients or internally by the server.
 
 ## Other ideas to study
 
