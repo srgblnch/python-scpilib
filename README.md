@@ -1,7 +1,7 @@
 # scpi
 Python module to provide scpi functionality to an instrument
 
-## Development Status :: 1 - Planning
+## [Development Status :: 4 - Beta](https://pypi.python.org/pypi?%3Aaction=list_classifiers)
 
 This code is, by now, only a prove of concept to prepare a python library 
 to provide *scpi commands tree* functionality in the **instrument side**.
@@ -9,7 +9,26 @@ to provide *scpi commands tree* functionality in the **instrument side**.
 SCPI library is based on these standards, but *doesn't complain them yet*.
  - [SCPI-99](http://www.ivifoundation.org/docs/scpi-99.pdf)
  - [IEEE 488.2-2004](http://dx.doi.org/10.1109/IEEESTD.2004.95390)
- 
+
+## Features requested (ToDo List)
+
+- [x] channels keywords in a command (even more than one channel separation).
+- [x] array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
+- [x] data formats for the arrays ('ASCII' but also binary floats with 1, 2, 4 or 8 Byte codification).
+- [ ] List the minimum special commands to be setup for an instrument.
+- [ ] Enumerate types to the command setters.
+- [ ] More listen channels than network
+- [ ] "autodoc" using the scpi tree
+- [x] Read commands with parameters after the '?' separator
+- [x] Write commands without parameters (no need a ' ' separator).
+- [ ] Lock write access: for one of the clients or internally by the server
+
+## Other ideas to study
+
+* [ ] Event subscription. Unknown if scpi has something about this in the specs.
+* [ ] Use SSL.
+* [ ] Authentication and ACLs.
+
 ## Installation
 
 It has been thought to use setuptools (and someday cython will be introduced 
@@ -142,19 +161,4 @@ and '08' (supporting up to '99' if it is setup this way).
 
 Then the command 'CHAN01:CURR:VALU?' will call a different read method than a
 command 'CHAN05:CURR:VALU?'.
-
-## ToDo List
-
-- [x] array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
-- [ ] List the minimum special commands to be setup for an instrument.
-- [ ] Enumerate types to the command setters.
-- [ ] More listen channels than network
-- [x] Read commands with parameters after the '?' separator
-- [x] Write commands without parameters (no need a ' ' separator).
-
-## Other ideas to study
-
-* [ ] Event subscription. Unknow if scpi has something about this in the specs.
-* [ ] Use SSL.
-* [ ] Authentication and ACLs.
 
