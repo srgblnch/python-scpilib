@@ -236,7 +236,6 @@ class Attribute(DictKey):
         self._read_cb = function
 
     def read(self, chlst=None, params=None):
-        self._debug("%s read %s, %s" % (self.name, chlst, params))  # FIXME: to be removed
         if self._read_cb is not None:
             if self.hasChannels and chlst is not None:
                 if params:
@@ -716,12 +715,17 @@ class WattrTest(AttrTest):
     def __init__(self, upperLimit=100, lowerLimit=-100):
         AttrTest.__init__(self, upperLimit, lowerLimit)
         self._value = randint(self._lowerLimit, self._upperLimit)
+        self._switch = False
 
     def readTest(self):
         return self._value
 
     def writeTest(self, value):
         self._value = value
+
+    def switchTest(self):
+        self._switch = not self._switch
+        return self._switch
 
 
 def testAttr(output=True):

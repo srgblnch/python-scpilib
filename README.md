@@ -145,19 +145,16 @@ command 'CHAN05:CURR:VALU?'.
 
 ## ToDo List
 
-* array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
-
-* List the minimum special commands to be setup for an instrument.
-
-* Enumerate types to the command setters.
-
-* More listen channels than network
+* [*] array-like answers (hint '#NMMMMMMMMMxxxxx...\n')
+* [ ] List the minimum special commands to be setup for an instrument.
+* [ ] Enumerate types to the command setters.
+* [ ] More listen channels than network
+* [*] Read commands with parameters after the '?' separator
+* [*] Write commands without parameters (no need a ' ' separator).
 
 ## Other ideas to study
 
-* Event subscription. Unknow if scpi has something about this in the specs.
-
-* Use SSL.
-
-* Authentication and ACLs.
+* [ ] Event subscription. Unknow if scpi has something about this in the specs.
+* [ ] Use SSL.
+* [ ] Authentication and ACLs.
 
