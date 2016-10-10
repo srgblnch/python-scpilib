@@ -92,7 +92,7 @@ class Logger(object):
 
 
 def printHeader(msg):
-    print("\n"+"="*len(msg)+"\n"+msg+"\n"+"="*len(msg)+"\n")
+    print("\n"+"*"*(len(msg)+4)+"\n* "+msg+" *\n"+"*"*(len(msg)+4)+"\n")
 
 
 def printFooter(msg):

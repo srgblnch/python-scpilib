@@ -138,26 +138,22 @@ class Locker(_Logger):
 
 
 # --- testing area
+try:
+    from .logger import printHeader as _printHeader
+    from .logger import printFooter as _printFooter
+except:
+    from logger import printHeader as _printHeader
+    from logger import printFooter as _printFooter
 
 
-def printHeader(msg):
-    print("*"*(len(msg)+4))
-    print("* %s *" % msg)
-    print("*"*(len(msg)+4))
-
-
-def printInfo(msg, level=0):
+def _printInfo(msg, level=0):
     print("%s%s" % ("\t"*level, msg))
-
-
-def printTail(msg):
-    print("\n%s %s %s\n" % ("*"*3, msg, "*"*3))
 
 
 def initialState(lockObj):
     testName = "Initial state test"
-    printHeader("Test the initial state of the lock object")
-    printInfo("Owner %s, expiration time: %s"
+    _printHeader("Test the initial state of the lock object")
+    _printInfo("Owner %s, expiration time: %s"
               % (lockObj.owner, lockObj.expirationTime), 1)
     if lockObj.isLock():
         return False, "%s FAILED" % (testName)
@@ -170,50 +166,50 @@ def initialState(lockObj):
 
 def singleUser(lockObj):
     testName = "Single user test"
-    printHeader("Test single user")
+    _printHeader("Test single user")
     requester = 'requester'
     # --- request
     if not lockObj.request(requester):
         return False, "%s FAILED" % (testName)
-    printInfo("%s succeed in the request" % requester, 1)
+    _printInfo("%s succeed in the request" % requester, 1)
     # --- owner
     if lockObj.owner != requester:
         return False, "%s FAILED" % (testName)
-    printInfo("lock owner %s == %s" % (lockObj.owner, requester), 1)
+    _printInfo("lock owner %s == %s" % (lockObj.owner, requester), 1)
     # --- pass the lock
     if not lockObj.isLock(None):
         return False, "%s FAILED" % (testName)
-    printInfo("non-owner cannot pass the lock", 1)
+    _printInfo("non-owner cannot pass the lock", 1)
     if lockObj.isLock(requester):
         return False, "%s FAILED" % (testName)
-    printInfo("owner can pass the lock", 1)
+    _printInfo("owner can pass the lock", 1)
     # --- release
     if not lockObj.release(requester):
         return False, "%s FAILED" % (testName)
-    printInfo("owner release the lock", 1)
+    _printInfo("owner release the lock", 1)
     if lockObj.isLock(None):
         return False, "%s FAILED" % (testName)
-    printInfo("anyone can pass the lock", 1)
+    _printInfo("anyone can pass the lock", 1)
     return True, "%s PASSED" % (testName)
 
 
 def multiUser(lockObj):
     testName = "multiple users test"
-    printHeader("Test multiple users")
+    _printHeader("Test multiple users")
     requester1, requester2 = 'requester1', 'requester2'
     # --- request
     if not lockObj.request(requester1):
         return False, "%s FAILED" % (testName)
-    printInfo("%s succeed in the request" % (requester1), 1)
+    _printInfo("%s succeed in the request" % (requester1), 1)
     if lockObj.request(requester2):
         return False, "%s FAILED" % (testName)
-    printInfo("%s cannot take the lock" % (requester2), 1)
+    _printInfo("%s cannot take the lock" % (requester2), 1)
     # --- timeout
-    printInfo("wait %s for lock expiration" % lockObj.expirationTime, 1)
+    _printInfo("wait %s for lock expiration" % lockObj.expirationTime, 1)
     _sleep(lockObj.expirationTime.seconds+1)
     if not lockObj.request(requester2, 10):
         return False, "%s FAILED" % (testName)
-    printInfo("%s timeout release, %s succeed in the request"
+    _printInfo("%s timeout release, %s succeed in the request"
               % (requester1, requester2), 1)
     return True, "%s PASSED" % (testName)
 
@@ -232,7 +228,7 @@ def main():
         result, msg = test(lockObj)
         results.append(result)
         messages.append(msg)
-        printTail(msg)
+        _printFooter(msg)
     if all(results):
         print("All tests PASSED")
     else:
