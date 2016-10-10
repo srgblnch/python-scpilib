@@ -101,7 +101,7 @@ class Locker(_Logger):
         return False
 
     def isLock(self):
-        if self._owner is None :
+        if self._owner is None:
             self._debug("There is no owner of the lock, %s can pass"
                         % _currentThread().name)
             return False
@@ -155,8 +155,6 @@ from threading import Lock as _Lock
 from threading import Thread as _Thread
 
 
-
-
 def _printInfo(msg, level=0, lock=None):
     if lock is None:
         print("%s%s" % ("\t"*level, msg))
@@ -169,7 +167,7 @@ def lockTake(lockObj):
     testName = "Initial state test"
     _printHeader("Test the initial state of the %s object" % lockObj)
     _printInfo("%r Owner %s, expiration time: %s"
-              % (lockObj, lockObj.owner, lockObj.expirationTime), 1)
+               % (lockObj, lockObj.owner, lockObj.expirationTime), 1)
     if lockObj.isLock():
         return False, "%s FAILED" % (testName)
     _printInfo("%r is not lock" % (lockObj), 1)
@@ -240,7 +238,7 @@ def multithreadingTake(lockObj):
         sendEvent(accessEvents, 1)
         _sleep(3)
         # --- here is where the test starts
-        answer =  True, "%s PASSED" % (testName)
+        answer = True, "%s PASSED" % (testName)
     except Exception as e:
         print(e)
         print_exc()
@@ -253,6 +251,7 @@ def multithreadingTake(lockObj):
             userThreads.append(userThread)
     print("All threads has finished")
     return answer
+
 
 def threadFunction(lockObj, joinedEvent, request, access, release, printLock):
     _printInfo("started", 1, printLock)
@@ -276,58 +275,6 @@ def threadFunction(lockObj, joinedEvent, request, access, release, printLock):
     _printInfo("exit", 1, printLock)
 
 
-# def singleUser(lockObj):
-#     testName = "Single user test"
-#     _printHeader("Test single user of %s" % (lockObj))
-#     # --- request
-#     if not lockObj.request():
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("%s succeed in the request %r"
-#                % (_currentThread().name, lockObj), 1)
-#     # --- owner
-#     if lockObj.owner != _currentThread().name:
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("%r owner %s == %s" % (lockObj, lockObj.owner,
-#                                       _currentThread().name), 1)
-#     # --- pass the lock
-#     if not lockObj.isLock():
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("non-owner cannot pass the %r" % (lockObj), 1)
-#     if lockObj.isLock(requester):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("owner can pass the %r" % (lockObj), 1)
-#     # --- release
-#     if not lockObj.release(requester):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("owner release the %r" % (lockObj), 1)
-#     if lockObj.isLock(None):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("anyone can pass the %r" % (lockObj), 1)
-#     return True, "%s PASSED" % (testName)
-
-
-# def multiUser(lockObj):
-#     testName = "multiple users test"
-#     _printHeader("Test multiple users of %s" % (lockObj))
-#     requester1, requester2 = 'requester1', 'requester2'
-#     # --- request
-#     if not lockObj.request(requester1, 10):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("%s succeed in the request of %r" % (requester1, lockObj), 1)
-#     if lockObj.request(requester2):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("%s cannot take the %r" % (requester2, lockObj), 1)
-#     # --- timeout
-#     _printInfo("wait %s for %r expiration"
-#                % (lockObj.expirationTime, lockObj), 1)
-#     _sleep(lockObj.expirationTime.seconds+1)
-#     if not lockObj.request(requester2, 10):
-#         return False, "%s FAILED" % (testName)
-#     _printInfo("%s timeout releases %r, %s succeed in the request"
-#               % (requester1, lockObj, requester2), 1)
-#     return True, "%s PASSED" % (testName)
-
-
 def main():
     from optparse import OptionParser
     parser = OptionParser()
@@ -338,10 +285,7 @@ def main():
     print("\nBasic locker functionality test:")
     results = []
     messages = []
-    for test in [lockTake, multithreadingTake
-#                  singleUser,
-#                  multiUser
-                 ]:
+    for test in [lockTake, multithreadingTake]:
         result, msg = test(lockObj)
         results.append(result)
         messages.append(msg)
