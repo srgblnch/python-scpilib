@@ -31,6 +31,7 @@ try:
     from .commands import WattrTest, WchannelTest
     from .logger import Logger as _Logger
     from .tcpListener import TcpListener
+    from .lock import Locker as _Locker
     from .version import version as _version
 except:
     from commands import Component, Attribute, BuildComponent, BuildChannel
@@ -39,6 +40,7 @@ except:
     from commands import WattrTest, WchannelTest
     from logger import Logger as _Logger
     from tcpListener import TcpListener
+    from lock import Locker as _Locker
     from version import version as _version
 
 
@@ -77,7 +79,7 @@ class scpi(_Logger):
     '''
     def __init__(self, commandTree=None, specialCommands=None,
                  local=True, port=5025, autoOpen=False, debug=False,
-                 services=None):
+                 services=None, writeLock=False):
         super(scpi, self).__init__(debug=debug)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -96,11 +98,8 @@ class scpi(_Logger):
                 self._local = bool(services & TCPLISTENER_LOCAL)
         if autoOpen:
             self.open()
-        self._dataFormat = 'ASCII'
-        self.addAttribute('DataFormat', self._commandTree,
-                          self.dataFormat, self.dataFormat,
-                          allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
-                                         'SINGLE', 'HALF'])
+        self.__buildDataFormatAttribute()
+        self.__buildSystemComponent(writeLock)
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -164,6 +163,50 @@ class scpi(_Logger):
                                                     port=self._port,
                                                     debug=self._debugFlag)
         self._services['tcpListener'].listen()
+
+    def __buildDataFormatAttribute(self):
+        self._dataFormat = 'ASCII'
+        self.addAttribute('DataFormat', self._commandTree,
+                          self.dataFormat, self.dataFormat,
+                          allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
+                                         'SINGLE', 'HALF'])
+
+    def __buildSystemComponent(self, writeLock):
+        systemTree = self.addComponent('system', self._commandTree)
+        self.__buildLockerComponent(systemTree, writeLock)
+        # TODO: other SYSTem components from SCPI-99 (pages 21-*)
+        #       :SYSTem:PASSword
+        #       :SYSTem:PASSword:CDISable
+        #       :SYSTem:PASSword:CENAble
+        #       :SYSTem:PASSword:NEW
+        #       :SYSTem:PRESet
+        #       :SYSTem:SECUrity
+        #       :SYSTem:SECUrity:IMMEdiate
+        #       :SYSTem:SECUrity:STATe
+        #       :SYSTem:TIME
+        #       :SYSTem:TIME:TIMEr
+        #       :SYSTem:TIME:TIMEr:COUNt
+        #       :SYSTem:TIME:TIMEr:STATe
+        #       :SYSTem:TZONe
+        #       :SYSTem:VERSion
+
+    def __buildLockerComponent(self, commandTree, writeLock):
+        self._lock = _Locker(name='readLock', debug=self._debugFlag)
+        lockingSet = {'Lock': self._lock}
+        if writeLock:
+            self._wlock = _Locker(name='writeLock', debug=self._debugFlag)
+            lockingSet['WLock'] = self._wlock
+        else:
+            self._wlock = None
+        for lock in lockingSet.keys():
+            subTree = self.addComponent(lock, commandTree)
+            self.addAttribute('owner', subTree, lockingSet[lock].Owner,
+                              default=True)
+            self.addAttribute('release', subTree, readcb=None,
+                              writecb=lockingSet[lock].release)
+            self.addAttribute('request', subTree,
+                              readcb=lockingSet[lock].request,
+                              writecb=lockingSet[lock].request)
 
     @property
     def remoteAllowed(self):
@@ -290,6 +333,8 @@ class scpi(_Logger):
 
     def input(self, line):
         self._debug("Received %r input" % (line))
+        if not self._isAccessAllowed():
+            return ''
         start_t = _time()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
             self._debug("from %r remove %r" % (line, line[-1]))
@@ -343,11 +388,12 @@ class scpi(_Logger):
                     result = self._specialCmds[key].read()
                     break
                 if cmd.count(' ') > 0:
-                    bar = cmd.split(' ')
-                    name, value = bar
-                    self._debug("Requesting write of %s with value %s"
-                                % (name, value))
-                    result = self._specialCmds[name].write(value)
+                    if self._isWriteAccessAllowed():
+                        bar = cmd.split(' ')
+                        name, value = bar
+                        self._debug("Requesting write of %s with value %s"
+                                    % (name, value))
+                        result = self._specialCmds[name].write(value)
                     break
                 self._debug("Requesting write of %s without value"
                             % (key))
@@ -380,8 +426,9 @@ class scpi(_Logger):
                     # a (write) command without parameters. But in this second
                     # case it must by an Attribute component or it may confuse
                     # with intermediate keys of the command.
-                    answer = self._doWriteOperation(cmd, tree, key, channelNum,
-                                                    params)
+                    if self._isWriteAccessAllowed():
+                        answer = self._doWriteOperation(cmd, tree, key,
+                                                        channelNum, params)
                 else:
                     tree = nextNode
             except Exception as e:
@@ -389,6 +436,7 @@ class scpi(_Logger):
                             "separator %r, params %r" % (key, cmd, separator,
                                                          params))
                 answer = float('NaN')
+                print_exc()
                 break
         self._debug("command %s processed in %g ms"
                     % (cmd, (_time()-start_t)*1000))
@@ -464,6 +512,54 @@ class scpi(_Logger):
 
     # input/output area ---
 
+    # # lock access area ---
+    def _BookAccess(self):
+        return self._lock.request()
+
+    def _UnbookAccess(self):
+        return self._lock.release()
+
+    def _isAccessAllowed(self):
+        return self._lock.access()
+
+    def _isAccessBooked(self):
+        return self._lock.isLock()
+
+    def _forceAccessRelease(self):
+        self._lock._forceRelease()
+
+    def _forceAccessBook(self):
+        self._forceAccessRelease()
+        return self._BookAccess()
+
+    def _BookWriteAccess(self):
+        if self._wlock:
+            return self._wlock.request()
+        return False
+
+    def _UnbookWriteAccess(self):
+        if self._wlock:
+            return self._wlock.release()
+        return False
+
+    def _isWriteAccessAllowed(self):
+        if self._wlock:
+            return self._wlock.access()
+        return True
+
+    def _isWriteAccessBooked(self):
+        if self._wlock:
+            return self._wlock.isLock()
+        return False
+
+    def _forceWriteAccessRelease(self):
+        if self._wlock:
+            self._wlock._forceRelease()
+
+    def _forceWriteAccessBook(self):
+        self._forceAccessRelease()
+        return self._BookAccess()
+    # lock access area ---
 
 # ---- TEST AREA
 try:
@@ -563,11 +659,12 @@ def testScpi(debug=False):
                      checkArrayAnswers,
                      checkMultipleCommands,
                      checkReadWithParams,
-                     checkWriteWithoutParams
-                     ]:
+                     checkWriteWithoutParams,
+                     checkLocks]:
             result, msg = test(scpiObj)
             results.append(result)
-            resultMsgs.append(msg)
+            tag, value = msg.rsplit(' ', 1)
+            resultMsgs.append([tag, value])
             _afterTestWait()
     if all(results):
         _printHeader("All tests passed: everything OK (%g s)"
@@ -575,8 +672,18 @@ def testScpi(debug=False):
     else:
         _printHeader("ALERT!! NOT ALL THE TESTS HAS PASSED. Check the list "
                      "(%g s)" % (_time()-start_t))
+    length = 0
+    for pair in resultMsgs:
+        if len(pair[0]) > length:
+            length = len(pair[0])
     for result in resultMsgs:
-        print(result)
+        print("%s%s\t%s%s" % (result[0], " "*(length-len(result[0])),
+                              result[1],
+                              " *" if result[1] == 'FAILED' else ""))
+    print("")
+
+
+# First descendant level for tests ---
 
 
 def checkIDN(scpiObj):
@@ -585,7 +692,7 @@ def checkIDN(scpiObj):
         identity = InstrumentIdentification('ALBA', 'test', 0, __version__())
         scpiObj.addSpecialCommand('IDN', identity.idn)
         cmd = "*idn?"
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest identification: %s\n\tAnswer: %r" % (cmd, answer))
         result = True, "Identification test PASSED"
     except:
@@ -747,23 +854,23 @@ def checkCommandQueries(scpiObj):
     try:
         print("Launch tests:")
         cmd = "*IDN?"
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tInstrument identification (%s)\n\tAnswer: %s" % (cmd, answer))
         for baseCmd in ['SOURce', 'BASIcloop', 'ITERative']:
             _printHeader("Check %s part of the tree" % (baseCmd))
-            doCheckCommands(scpiObj, baseCmd)
+            _doCheckCommands(scpiObj, baseCmd)
         for ch in range(1, nChannels+1):
             baseCmd = "CHANnel%s" % (str(ch).zfill(2))
             _printHeader("Check %s part of the tree" % (baseCmd))
-            doCheckCommands(scpiObj, baseCmd)
+            _doCheckCommands(scpiObj, baseCmd)
             fn = _randomchoice(range(1, nSubchannels+1))
             innerCmd = "FUNCtion%s" % (str(fn).zfill(2))
             _printHeader("Check %s + MEAS:%s part of the tree"
                          % (baseCmd, innerCmd))
-            doCheckCommands(scpiObj, baseCmd, innerCmd)
+            _doCheckCommands(scpiObj, baseCmd, innerCmd)
         result = True, "Command queries test PASSED"
     except:
-        rasult = False, "Command queries test FAILED"
+        result = False, "Command queries test FAILED"
     _printFooter(result[1])
     return result
 
@@ -781,7 +888,7 @@ def checkCommandWrites(scpiObj):
                            readcb=voltageConfObj.readTest,
                            writecb=voltageConfObj.writeTest)
         for inner in ['current', 'voltage']:
-            doWriteCommand(scpiObj, "source:%s:configure" % (inner))
+            _doWriteCommand(scpiObj, "source:%s:configure" % (inner))
         _wait(1)  # FIXME: remove
         # channel commands ---
         _printHeader("Testing to channel command writes")
@@ -814,8 +921,8 @@ def checkCommandWrites(scpiObj):
         for i in range(nChannels):
             rndCh = _randint(1, nChannels)
             element = _randomchoice(['current', 'voltage'])
-            doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndCh,
-                                  element, nChannels)
+            _doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndCh,
+                                   element, nChannels)
             _interTestWait()
         print("\nChecking multile writes multiple reads\n")
         for i in range(nChannels):
@@ -828,8 +935,8 @@ def checkCommandWrites(scpiObj):
                 rndChs.append(rndCh)
             element = _randomchoice(['current', 'voltage'])
             values = [_randint(-1000, 1000)]*testNwrites
-            doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndChs,
-                                  element, nChannels, values)
+            _doWriteChannelCommand(scpiObj, "%s:%s" % (baseCmd, chCmd), rndChs,
+                                   element, nChannels, values)
             _interTestWait()
         print("\nChecking write with allowed values limitation\n")
         selectionCmd = 'source:selection'
@@ -838,11 +945,11 @@ def checkCommandWrites(scpiObj):
         scpiObj.addCommand(selectionCmd, readcb=selectionObj.readTest,
                            writecb=selectionObj.writeTest,
                            allowedArgins=[True, False])
-        doWriteCommand(scpiObj, selectionCmd, True)
-        # doWriteCommand(scpiObj, selectionCmd, 'Fals')
-        # doWriteCommand(scpiObj, selectionCmd, 'True')
+        _doWriteCommand(scpiObj, selectionCmd, True)
+        # _doWriteCommand(scpiObj, selectionCmd, 'Fals')
+        # _doWriteCommand(scpiObj, selectionCmd, 'True')
         try:
-            doWriteCommand(scpiObj, selectionCmd, 0)
+            _doWriteCommand(scpiObj, selectionCmd, 0)
         except:
             print("\tLimitation values succeed because it raises an exception "
                   "as expected")
@@ -850,96 +957,13 @@ def checkCommandWrites(scpiObj):
             raise AssertionError("It has been write a value that "
                                  "should not be allowed")
         _interTestWait()
-        result = True, "Command queries test PASSED"
-    except:
-        result = False, "Command queries test FAILED"
+        result = True, "Command writes test PASSED"
+    except Exception as e:
+        print(e)
+        print_exc()
+        result = False, "Command writes test FAILED"
     _printFooter(result[1])
     return result
-
-
-def doWriteCommand(scpiObj, cmd, value=None):
-    # first read ---
-    answer1 = scpiObj.input("%s?" % cmd)
-    print("\tRequested %s initial value: %r" % (cmd, answer1))
-    # then write ---
-    if value is None:
-        value = _randint(-1000, 1000)
-        while value == int(answer1.strip()):
-            value = _randint(-1000, 1000)
-    answer2 = scpiObj.input("%s %s" % (cmd, value))
-    print("\tWrite %s value: %s, answer: %r" % (cmd, value, answer2))
-    # read again ---
-    answer3 = scpiObj.input("%s?" % cmd)
-    print("\tRequested %s again value: %r\n" % (cmd, answer3))
-    if answer2 != answer3:
-        raise AssertionError("Didn't change after write (%s, %s, %s)"
-                             % (answer1, answer2, answer3))
-
-
-def doWriteChannelCommand(scpiObj, pre, inner, post, nCh, value=None):
-    maskCmd = "%sNN:%s" % (pre, post)
-    # first read all the channels ---
-    answer1, toModify, value = _channelCmds_readCheck(scpiObj, pre, inner,
-                                                      post, nCh, value)
-    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)"
-          % (maskCmd, answer1, toModify.items()))
-    # then write the specified one ---
-    answer2, wCmd = _channelCmds_write(scpiObj, pre, inner, post, nCh, value)
-    print("\tWrite %s value: %s, answer:\n\t\t%r" % (wCmd, value, answer2))
-    # read again all of them ---
-    answer3, modified, value = _channelCmds_readCheck(scpiObj, pre, inner,
-                                                      post, nCh, value)
-    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)\n"
-          % (maskCmd, answer3, modified.items()))
-
-
-def _channelCmds_readCheck(scpiObj, pre, inner, post, nCh, value=None):
-    rCmd = ''.join("%s%s:%s?;" % (pre, str(ch).zfill(2), post)
-                   for ch in range(1, nCh+1))
-    answer = scpiObj.input("%s" % rCmd)
-    if type(inner) is list:
-        toCheck = {}
-        for i in inner:
-            toCheck[i] = answer.strip().split(';')[i-1]
-    else:
-        toCheck = {inner: answer.strip().split(';')[inner-1]}
-        if value is None:
-            value = _randint(-1000, 1000)
-            while value == int(toCheck[inner]):
-                value = _randint(-1000, 1000)
-    return answer, toCheck, value
-
-
-def _channelCmds_write(scpiObj, pre, inner, post, nCh, value):
-    if type(inner) is list:
-        if type(value) is not list:
-            value = [value]*len(inner)
-        while len(value) < len(inner):
-            value += value[-1]
-        wCmd = ""
-        for i, each in enumerate(inner):
-            wCmd += "%s%s:%s %s;" % (pre, str(each).zfill(2), post,
-                                     value[i])
-        wCmd = wCmd[:-1]
-    else:
-        wCmd = "%s%s:%s %s" % (pre, str(inner).zfill(2), post, value)
-    answer = scpiObj.input("%s" % (wCmd))
-    return answer, wCmd
-
-
-def doCheckCommands(scpiObj, baseCmd, innerCmd=None):
-    subCmds = ['CURRent', 'VOLTage']
-    attrs = ['UPPEr', 'LOWEr', 'VALUe']
-    for subCmd in subCmds:
-        for attr in attrs:
-            if innerCmd:
-                cmd = "%s:MEAS:%s:%s:%s?" % (baseCmd, innerCmd, subCmd, attr)
-            else:
-                cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
-            answer = scpiObj.input(cmd)
-            print("\tRequest %s of %s (%s)\n\tAnswer: %r"
-                  % (attr.lower(), subCmd.lower(), cmd, answer))
-    _interTestWait()
 
 
 def checkNonexistingCommands(scpiObj):
@@ -952,38 +976,38 @@ def checkNonexistingCommands(scpiObj):
         # * first level doesn't exist
         start_t = _time()
         cmd = "%s:%s:%s?" % (fake, subCmd, attr)
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         # * intermediate level doesn't exist
         cmd = "%s:%s:%s?" % (baseCmd, fake, attr)
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         # * Attribute level doesn't exist
         cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         # * Attribute that doesn't respond
         cmd = 'source:voltage:exception'
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest existing command but that it raises an exception %s"
               "\n\tAnswer: %r (%g ms)" % (cmd, answer, (_time()-start_t)*1000))
         # * Unexisting Channel
         baseCmd = "CHANnel%s" % (str(nChannels+3).zfill(2))
         cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         # * Channel below the minimum reference
         cmd = "CHANnel00:VOLTage:UPPEr?"
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         # * Channel above the maximum reference
         cmd = "CHANnel99:VOLTage:UPPEr?"
-        answer = scpiObj.input(cmd)
+        answer = _send2Input(scpiObj, cmd)
         print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
               % (cmd, answer, (_time()-start_t)*1000))
         result = True, "Non-existing commands test PASSED"
@@ -1012,8 +1036,8 @@ def checkArrayAnswers(scpiObj):
         answersLengths = {}
         for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
             for format in ['ASCII', 'QUADRUPLE', 'DOUBLE', 'SINGLE', 'HALF']:
-                scpiObj.input("DataFormat %s" % (format))
-                answer = scpiObj.input(cmd + '?')
+                answer = _send2Input(scpiObj, "DataFormat %s" % (format))
+                answer = _send2Input(scpiObj, cmd + '?')
                 print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
                                                                 len(answer)))
                 if format not in answersLengths:
@@ -1040,7 +1064,7 @@ def checkMultipleCommands(scpiObj):
             cmds = "".join("%s;" % x for x in lst)[:-1]
             cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
             start_t = _time()
-            answer = scpiObj.input(cmds)
+            answer = _send2Input(scpiObj, cmds)
             nAnswers = len(_cutMultipleAnswer(answer))
             log.append(_time() - start_t)
             print("\tRequest %d attributes in a single query: \n%s\tAnswer: "
@@ -1064,16 +1088,20 @@ def checkReadWithParams(scpiObj):
         cmd = 'reader:with:parameters'
         longTest = ArrayTest(100)
         scpiObj.addCommand(cmd, readcb=longTest.readRange)
-        scpiObj.input("DataFormat ASCII")
+        answer = _send2Input(scpiObj, "DataFormat ASCII")
+        if answer is None or len(answer) == 0:
+            raise ValueError("Empty string")
         for i in range(10):
             bar, foo = _randint(0, 100), _randint(0, 100)
             start = min(bar, foo)
             end = max(bar, foo)
             cmdWithParams = "%s?%s,%s" % (cmd, start, end)
-            answer = scpiObj.input(cmdWithParams)
+            answer = _send2Input(scpiObj, cmdWithParams)
             print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmdWithParams,
                                                             answer,
                                                             len(answer)))
+            if answer is None or len(answer) == 0:
+                raise ValueError("Empty string")
         result = True, "Read with parameters test PASSED"
     except:
         result = False, "Read with parameters test FAILED"
@@ -1089,14 +1117,132 @@ def checkWriteWithoutParams(scpiObj):
         scpiObj.addCommand(cmd, readcb=switch.switchTest)
         for i in range(3):
             cmd = "%s%s" % (cmd, " "*i)
-            answer = scpiObj.input(cmd)
+            answer = _send2Input(scpiObj, cmd)
             print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
                                                             len(answer)))
+            if answer is None or len(answer) == 0:
+                raise ValueError("Empty string")
         result = True, "Write without parameters test PASSED"
     except:
         result = False, "Write without parameters test FAILED"
     _printFooter(result[1])
     return result
+
+
+def checkLocks(scpiObj):
+    _printHeader("system [write]lock")
+    try:
+        smallCmd = "SYSTem:LOCK"
+        completeCmd = "%s:OWNEr" % (smallCmd)
+        answer1 = _send2Input(scpiObj, smallCmd)
+        answer2 = _send2Input(scpiObj, completeCmd)
+        print("\tRequest Lock state: %r (%r)" % (answer1, answer2))
+        print("\t(read)lock request")
+        requestCmd = "%s:REQUest?" % (smallCmd)
+        requestAnswer = _cutMultipleAnswer(_send2Input(scpiObj, requestCmd))[0]
+        if requestAnswer == 'False':
+            raise RuntimeError("the lock has been NOT take")
+        print requestAnswer
+        result = True, "system [write]lock test PASSED"
+    except:
+        result = False, "system [write]lock test FAILED"
+    _printFooter(result[1])
+    return result
+
+
+# second descendant level for tests ---
+
+
+def _send2Input(scpiObj, msg, requestor='local'):
+    answer = scpiObj.input(msg, requestor)
+    if answer is None or len(answer) == 0:
+        raise ValueError("Empty string answer for %s" % (msg))
+    return answer
+
+
+def _doCheckCommands(scpiObj, baseCmd, innerCmd=None):
+    subCmds = ['CURRent', 'VOLTage']
+    attrs = ['UPPEr', 'LOWEr', 'VALUe']
+    for subCmd in subCmds:
+        for attr in attrs:
+            if innerCmd:
+                cmd = "%s:MEAS:%s:%s:%s?" % (baseCmd, innerCmd, subCmd, attr)
+            else:
+                cmd = "%s:%s:%s?" % (baseCmd, subCmd, attr)
+            answer = _send2Input(scpiObj, cmd)
+            print("\tRequest %s of %s (%s)\n\tAnswer: %r"
+                  % (attr.lower(), subCmd.lower(), cmd, answer))
+    _interTestWait()
+
+
+def _doWriteCommand(scpiObj, cmd, value=None):
+    # first read ---
+    answer1 = _send2Input(scpiObj, "%s?" % cmd)
+    print("\tRequested %s initial value: %r" % (cmd, answer1))
+    # then write ---
+    if value is None:
+        value = _randint(-1000, 1000)
+        while value == int(answer1.strip()):
+            value = _randint(-1000, 1000)
+    answer2 = _send2Input(scpiObj, "%s %s" % (cmd, value))
+    print("\tWrite %r value: %r, answer: %r" % (cmd, value, answer2))
+    # read again ---
+    answer3 = _send2Input(scpiObj, "%s?" % cmd)
+    print("\tRequested %r again value: %r\n" % (cmd, answer3))
+    if answer2 != answer3:
+        raise AssertionError("Didn't change after write (%r, %r, %r)"
+                             % (answer1, answer2, answer3))
+
+
+def _doWriteChannelCommand(scpiObj, pre, inner, post, nCh, value=None):
+    maskCmd = "%sNN:%s" % (pre, post)
+    # first read all the channels ---
+    answer1, toModify, value = _channelCmds_readCheck(scpiObj, pre, inner,
+                                                      post, nCh, value)
+    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)"
+          % (maskCmd, answer1, toModify.items()))
+    # then write the specified one ---
+    answer2, wCmd = _channelCmds_write(scpiObj, pre, inner, post, nCh, value)
+    print("\tWrite %s value: %s, answer:\n\t\t%r" % (wCmd, value, answer2))
+    # read again all of them ---
+    answer3, modified, value = _channelCmds_readCheck(scpiObj, pre, inner,
+                                                      post, nCh, value)
+    print("\tRequested %s initial values:\n\t\t%r\n\t\t(highlight %s)\n"
+          % (maskCmd, answer3, modified.items()))
+
+
+def _channelCmds_readCheck(scpiObj, pre, inner, post, nCh, value=None):
+    rCmd = ''.join("%s%s:%s?;" % (pre, str(ch).zfill(2), post)
+                   for ch in range(1, nCh+1))
+    answer = _send2Input(scpiObj, "%s" % rCmd)
+    if type(inner) is list:
+        toCheck = {}
+        for i in inner:
+            toCheck[i] = answer.strip().split(';')[i-1]
+    else:
+        toCheck = {inner: answer.strip().split(';')[inner-1]}
+        if value is None:
+            value = _randint(-1000, 1000)
+            while value == int(toCheck[inner]):
+                value = _randint(-1000, 1000)
+    return answer, toCheck, value
+
+
+def _channelCmds_write(scpiObj, pre, inner, post, nCh, value):
+    if type(inner) is list:
+        if type(value) is not list:
+            value = [value]*len(inner)
+        while len(value) < len(inner):
+            value += value[-1]
+        wCmd = ""
+        for i, each in enumerate(inner):
+            wCmd += "%s%s:%s %s;" % (pre, str(each).zfill(2), post,
+                                     value[i])
+        wCmd = wCmd[:-1]
+    else:
+        wCmd = "%s%s:%s %s" % (pre, str(inner).zfill(2), post, value)
+    answer = _send2Input(scpiObj, "%s" % (wCmd))
+    return answer, wCmd
 
 
 def _cutMultipleAnswer(answerStr):
@@ -1120,7 +1266,6 @@ def _cutMultipleAnswer(answerStr):
                 one = answerStr
                 answerStr = ''
             answersLst.append(one)
-    print answersLst
     return answersLst
 
 
