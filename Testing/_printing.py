@@ -21,9 +21,29 @@ __author__ = "Sergi Blanch-Torné"
 __copyright__ = "Copyright 2016, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
+
+from threading import currentThread as _currentThread
+
+
 def printHeader(msg):
     print("\n"+"*"*(len(msg)+4)+"\n* "+msg+" *\n"+"*"*(len(msg)+4)+"\n")
 
 
 def printFooter(msg):
     print("\n*** %s ***\n" % (msg))
+
+def printInfo(msg, level=0, lock=None, top=False, bottom=False):
+    if lock is None:
+        print("%s%s" % ("\t"*level, msg))
+    else:
+        with lock:
+            tab = "\t"*level
+            msg = "Thread %s: %s" % (_currentThread().name, msg)
+            if top or bottom:
+                if top:
+                    msg = "%s%s\n%s%s" % (tab, "-"*len(msg), tab, msg)
+                elif bottom:
+                    msg = "%s%s\n%s%s\n" % (tab, msg, tab, "-"*len(msg))
+            else:
+                msg = "%s%s" % (tab, msg)
+            print(msg)

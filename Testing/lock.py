@@ -26,11 +26,13 @@ from scpi.lock import Locker
 # --- testing area
 from optparse import OptionParser
 try:
-    from .printing import printHeader as _printHeader
-    from .printing import printFooter as _printFooter
+    from ._printing import printHeader as _printHeader
+    from ._printing import printFooter as _printFooter
+    from ._printing import printInfo as _printInfo
 except:
-    from printing import printHeader as _printHeader
-    from printing import printFooter as _printFooter
+    from _printing import printHeader as _printHeader
+    from _printing import printFooter as _printFooter
+    from _printing import printInfo as _printInfo
 import sys
 from time import sleep as _sleep
 from threading import currentThread as _currentThread
@@ -41,23 +43,6 @@ from traceback import print_exc
 
 
 TEST_EXPIRATION_TIME = 10  # seconds
-
-
-def _printInfo(msg, level=0, lock=None, top=False, bottom=False):
-    if lock is None:
-        print("%s%s" % ("\t"*level, msg))
-    else:
-        with lock:
-            tab = "\t"*level
-            msg = "Thread %s: %s" % (_currentThread().name, msg)
-            if top or bottom:
-                if top:
-                    msg = "%s%s\n%s%s" % (tab, "-"*len(msg), tab, msg)
-                elif bottom:
-                    msg = "%s%s\n%s%s\n" % (tab, msg, tab, "-"*len(msg))
-            else:
-                msg = "%s%s" % (tab, msg)
-            print(msg)
 
 
 def lockTake(lockObj):
