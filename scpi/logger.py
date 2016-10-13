@@ -36,6 +36,9 @@ _logger_INFO = 3
 _logger_DEBUG = 4
 
 
+__all__ = ["Logger"]
+
+
 class Logger(object):
     '''This class is a very basic debugging flag mode used as a super class
        for the other classes in this library.
