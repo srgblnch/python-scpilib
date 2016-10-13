@@ -718,9 +718,11 @@ class WattrTest(AttrTest):
         self._switch = False
 
     def readTest(self):
+        print("read %s" % self._value)
         return self._value
 
     def writeTest(self, value):
+        print("write %s" % value)
         self._value = value
 
     def switchTest(self):

@@ -695,7 +695,8 @@ def checkIDN(scpiObj):
         answer = _send2Input(scpiObj, cmd)
         print("\tRequest identification: %s\n\tAnswer: %r" % (cmd, answer))
         result = True, "Identification test PASSED"
-    except:
+    except Exception as e:
+        print("\tUnexpected kind of exception! %s" % e)
         result = False, "Identification test FAILED"
     _printFooter(result[1])
     return result
@@ -1154,7 +1155,7 @@ def checkLocks(scpiObj):
 
 
 def _send2Input(scpiObj, msg, requestor='local'):
-    answer = scpiObj.input(msg, requestor)
+    answer = scpiObj.input(msg)
     if answer is None or len(answer) == 0:
         raise ValueError("Empty string answer for %s" % (msg))
     return answer
