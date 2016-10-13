@@ -1,7 +1,9 @@
 # scpi
 Python module to provide scpi functionality to an instrument under a **GPLv3+** license.
 
-## [Development Status :: 4 - Beta](https://pypi.python.org/pypi?%3Aaction=list_classifiers)
+
+![license GPLv3+](https://img.shields.io/badge/license-GPLv3+-green.svg) ![about](https://img.shields.io/badge/Subject-ICS-orange.svg?style=social) ![about](https://img.shields.io/badge/Subject-Instrumentation-orange.svg?style=social)
+![4 - Beta](https://img.shields.io/badge/Development_Status-4_--_beta-yellow.svg) ![Codeship badge](https://codeship.com/projects/d4d61020-736f-0134-5151-52e76941e580/status?branch=master)
 
 This project has started as a *toy-project* to test the [Skippy](https://github.com/srgblnch/skippy) Tango device server. But it has evolved to become a python library to provide *scpi commands tree* functionality in the **instrument side**.
 
