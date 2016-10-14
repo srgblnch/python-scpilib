@@ -26,6 +26,10 @@ __license__ = "GPLv3+"
 from random import randint
 
 
+nChannels = 8
+nSubchannels = nChannels*2
+
+
 class AttrTest:
     def __init__(self, upperLimit=100, lowerLimit=-100):
         self._upperLimit = upperLimit

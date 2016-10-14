@@ -34,12 +34,8 @@ __license__ = "GPLv3+"
 
 try:
     from .logger import Logger as _Logger
-    from .version import version as _version
 except:
     from logger import Logger as _Logger
-    from version import version as _version
-
-
 try:
     from numpy import ndarray as _np_ndarray
     from numpy import float16 as _np_float16
@@ -49,8 +45,6 @@ try:
     _np = True
 except:
     _np = False
-
-
 try:
     from scipy import ndarray as _sp_ndarray
     from scipy import float16 as _sp_float16
@@ -60,6 +54,7 @@ try:
     _sp = True
 except:
     _sp = False
+
 
 if _np and not _sp:
     _float16 = _np_float16
@@ -71,8 +66,6 @@ elif _sp:
     _float32 = _sp_float32
     _float64 = _sp_float64
     _float128 = _sp_float128
-
-from struct import pack as _pack
 
 
 MINIMUMKEYLENGHT = 4

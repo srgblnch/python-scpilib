@@ -41,10 +41,6 @@ from scpi.commands import DictKey
 from scpi.version import version
 
 
-nChannels = 8
-nSubchannels = nChannels*2
-
-
 def testDictKey(output=True):
     if output:
         printHeader("Tests for the DictKey object construction")
