@@ -24,6 +24,13 @@ __license__ = "GPLv3+"
 
 
 from random import randint
+from scpi.commands import _np, _float16, _float32, _float64, _float128
+
+try:
+    from numpy.random import random as _np_randomArray
+    from numpy import array as _np_array
+except:
+    _np_randomArray = None
 
 
 nChannels = 8
@@ -106,6 +113,7 @@ class WchannelTest(ChannelTest):
     def writeTest(self, ch, value):
         self._value[ch-1] = value
 
+
 class SubchannelTest:
     def __init__(self, channels=4, subchannels=8,
                  upperLimit=100, lowerLimit=-100):
@@ -129,6 +137,7 @@ class SubchannelTest:
         if value is None:
             return self._lowerLimit[ch-1][subch-1]
         self._lowerLimit[ch-1][subch-1] = float(value)
+
 
 class ArrayTest:
     def __init__(self, length=100):

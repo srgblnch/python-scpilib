@@ -32,6 +32,7 @@ def printHeader(msg):
 def printFooter(msg):
     print("\n*** %s ***\n" % (msg))
 
+
 def printInfo(msg, level=0, lock=None, top=False, bottom=False):
     if lock is None:
         print("%s%s" % ("\t"*level, msg))

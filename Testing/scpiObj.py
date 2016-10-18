@@ -37,17 +37,23 @@ except:
 try:
     from ._printing import printHeader as _printHeader
     from ._printing import printFooter as _printFooter
+    from ._printing import printInfo as _printInfo
 except:
     from _printing import printHeader as _printHeader
     from _printing import printFooter as _printFooter
+    from _printing import printInfo as _printInfo
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
 from scpi import scpi
 from scpi.version import version as _version
+import socket as _socket
 from time import sleep as _sleep
 from time import time as _time
 from threading import currentThread as _currentThread
+from threading import Event as _Event
+from threading import Lock as _Lock
+from threading import Thread as _Thread
 from traceback import print_exc
 
 
@@ -628,17 +634,7 @@ def checkWriteWithoutParams(scpiObj):
 def checkLocks(scpiObj):
     _printHeader("system [write]lock")
     try:
-        smallCmd = "SYSTem:LOCK"
-        completeCmd = "%s:OWNEr" % (smallCmd)
-        answer1 = _send2Input(scpiObj, smallCmd)
-        answer2 = _send2Input(scpiObj, completeCmd)
-        print("\tRequest Lock state: %r (%r)" % (answer1, answer2))
-        print("\t(read)lock request")
-        requestCmd = "%s:REQUest?" % (smallCmd)
-        requestAnswer = _cutMultipleAnswer(_send2Input(scpiObj, requestCmd))[0]
-        if requestAnswer == 'False':
-            raise RuntimeError("the lock has been NOT take")
-        print requestAnswer
+        LockThreadedTest(scpiObj).launchTest()
         result = True, "system [write]lock test PASSED"
     except Exception as e:
         print("\tUnexpected kind of exception! %s" % e)
@@ -784,6 +780,235 @@ def _buildCommand2Test():
     else:
         attr = _randomchoice(attrs)
     return "%s:%s:%s?" % (baseCmd, subCmd, attr)
+
+
+class _EventWithResult(object):
+    def __init__(self):
+        super(_EventWithResult, self).__init__()
+        self._eventObj = _Event()
+        self._eventObj.clear()
+        self._results = []
+
+    def set(self):
+        self._eventObj.set()
+
+    def isSet(self):
+        return self._eventObj.isSet()
+
+    def clear(self):
+        self._eventObj.clear()
+
+    def resultsAvailable(self):
+        return len(self._results) > 0
+
+    @property
+    def result(self):
+        if self.resultsAvailable():
+            return self._results.pop(0)
+
+    @result.setter
+    def result(self, value):
+        self._results.append(value)
+
+
+class LockThreadedTest(object):
+    def __init__(self, scpiObj):
+        super(LockThreadedTest, self).__init__()
+        self._scpiObj = scpiObj
+        self._printLock = _Lock()
+        self._prepareCommands()
+        self._prepareClients()
+
+    def _prepareCommands(self):
+        self._commands = {'baseCmd': "SOURce:CURRent",
+                          'requestRW': "SYSTEM:LOCK:REQUEST?",
+                          'requestWO': "SYSTEM:WLOCK:REQUEST?",
+                          'releaseRW': "SYSTEM:LOCK:RELEASE?",
+                          'releaseWO': "SYSTEM:WLOCK:RELEASE?",
+                          'ownerRW': "SYSTEM:LOCK?",
+                          'ownerWO': "SYSTEM:WLOCK?"}
+        self._readCmd = "%s:LOWEr?;%s?;%s:UPPEr?;%s;%s"\
+            % (self._commands['baseCmd'], self._commands['baseCmd'],
+               self._commands['baseCmd'],
+               self._commands['ownerRW'], self._commands['ownerWO'])
+        self._writeCmd = "%s:LOWEr %%s;%s:UPPEr %%s;%s;%s"\
+            % (self._commands['baseCmd'],  self._commands['baseCmd'],
+               self._commands['ownerRW'], self._commands['ownerWO'])
+
+    def _prepareClients(self):
+        self._joinerEvent = _Event()
+        self._joinerEvent.clear()
+        self._clientThreads = {}
+        # use threading.Event() to command the threads to do actions
+        self._requestRWlock = {}
+        self._requestWOlock = {}
+        self._readAccess = {}
+        self._writeAccess = {}
+        self._releaseRWlock = {}
+        self._releaseWOlock = {}
+        for threadName in [4, 6]:
+            requestRW = _EventWithResult()
+            requestWO = _EventWithResult()
+            readAction = _EventWithResult()
+            writeAction = _EventWithResult()
+            releaseRW = _EventWithResult()
+            releaseWO = _EventWithResult()
+            threadObj = _Thread(target=self._clientThread,
+                                args=(threadName,),
+                                name="IPv%d" % threadName)
+            self._requestRWlock[threadName] = requestRW
+            self._requestWOlock[threadName] = requestWO
+            self._readAccess[threadName] = readAction
+            self._writeAccess[threadName] = writeAction
+            self._releaseRWlock[threadName] = releaseRW
+            self._releaseWOlock[threadName] = releaseWO
+            self._clientThreads[threadName] = threadObj
+            threadObj.start()
+
+    def launchTest(self):
+        self._test1()  # read access
+        self._test2()  # write access
+        self._test3()  # write access lock
+        self._test4()  # request a lock whe it's owned by another.
+        # TODO 5th test: non-owner release.
+        # TODO 6th test: take the READ lock when WRITE is taken
+        # TODO 7th test: wait until the lock expires and access
+        # TODO 8th test: release the WRITE lock
+        # TODO 9th test: take the READ lock and clients check the owner
+        self._joinerEvent.set()
+        while len(self._clientThreads.keys()) > 0:
+            threadKey = self._clientThreads.keys()[0]
+            clientThread = self._clientThreads.pop(threadKey)
+            clientThread.join(1)
+            if clientThread.isAlive():
+                self._clientThreads[threadKey] = clientThread
+
+    def _test1(self, subtest=0):  # 1st test: read access
+        testName = "Clients read access"
+        self._print(testName, level=1+subtest, top=True)
+        results = self._doReadAll()
+        self._printResults(results)
+        self._print(testName, level=1+subtest, bottom=True)
+
+    def _test2(self, subtest=0):  # 2nd test: write access
+        testName = "Clients write access"
+        self._print(testName, level=1+subtest, top=True)
+        succeed = {}
+        for threadName in self._clientThreads.keys():
+            succeed[threadName] = False
+            self._writeAccess[threadName].set()
+            while self._writeAccess[threadName].isSet():
+                _sleep(1)
+            readResults = self._doReadAll()
+            for tName in readResults.keys():
+                self._print("Thread %d: read: %r"
+                            % (tName, readResults[tName]), level=2)
+        results = self._wait4Results(self._writeAccess, succeed)
+        self._printResults(results)
+        self._print(testName, level=1+subtest, bottom=True)
+
+    def _test3(self):  # 3rd test: write access lock
+        testName = "One Client LOCK the WRITE access"
+        self._print(testName, level=1, top=True)
+        self._requestWOlock[4].set()
+        while self._requestWOlock[4].isSet():
+            _sleep(1)
+        self._print("Thread 4 should have the lock. Answer: %r"
+                    % (self._requestWOlock[4].result), level=2)
+        # self._test1(subtest=1)
+        # self._test2(subtest=1)
+        self._print(testName, level=1, bottom=True)
+
+    def _test4(self):  # 3rd test: request a lock whe it's owned by another
+        testName = "Another Client request LOCK the WRITE access "\
+            "(when still is owned by another)"
+        self._print(testName, level=1, top=True)
+        self._requestWOlock[6].set()
+        while self._requestWOlock[6].isSet():
+            _sleep(1)
+        self._print("Thread 4 should have the lock and thread 6 NOT. "
+                    "Answer: %r" % (self._requestWOlock[6].result), level=2)
+        # self._test1(subtest=1)
+        self._print(testName, level=1, bottom=True)
+
+    def _doReadAll(self):
+        actionDone = {}
+        for threadName in self._clientThreads.keys():
+            actionDone[threadName] = False
+            self._readAccess[threadName].set()
+        return self._wait4Results(self._readAccess, actionDone)
+
+    def _wait4Results(self, eventGrp, succeedDct):
+        results = {}
+        while not all(succeedDct.values()):
+            for threadName in self._clientThreads.keys():
+                if succeedDct[threadName] is False and \
+                        eventGrp[threadName].resultsAvailable():
+                    result = eventGrp[threadName].result
+                    # TODO: process the result to device if the test has passed
+                    succeedDct[threadName] = True
+                    results[threadName] = result
+            _sleep(0.1)
+        return results
+
+    def _clientThread(self, threadName):
+        self._print("start", level=0)
+        connectionObj = self._buildClientConnection(threadName)
+        while not self._joinerEvent.isSet():
+            self._checkAction(self._requestRWlock[threadName],
+                              'requestRW', connectionObj)
+            self._checkAction(self._requestWOlock[threadName],
+                              'requestWO', connectionObj)
+            # TODO: read and write
+            self._checkRead(threadName, connectionObj)
+            self._checkWrite(threadName, connectionObj)
+            self._checkAction(self._releaseRWlock[threadName],
+                              'releaseRW', connectionObj)
+            self._checkAction(self._releaseWOlock[threadName],
+                              'releaseWO', connectionObj)
+            _sleep(0.1)
+        connectionObj.close()
+        self._print("exit", level=0)
+
+    def _buildClientConnection(self, ipversion):
+        if ipversion == 4:
+            socket = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            socket.connect(('127.0.0.1', 5025))
+        elif ipversion == 6:
+            socket = _socket.socket(_socket.AF_INET6, _socket.SOCK_STREAM)
+            socket.connect(('::1', 5025))
+        else:
+            raise RuntimeError("Cannot build the connection to the server!")
+        return socket
+
+    def _checkAction(self, event, eventTag, socket):
+        if event.isSet():
+            socket.send(self._commands[eventTag])
+            event.result = socket.recv(1024)
+            event.clear()
+
+    def _checkRead(self, threadName, socket):
+        event = self._readAccess[threadName]
+        if event.isSet():
+            socket.send(self._readCmd)
+            event.result = socket.recv(1024)
+            event.clear()
+
+    def _checkWrite(self, threadName, socket):
+        event = self._writeAccess[threadName]
+        if event.isSet():
+            socket.send(self._writeCmd % (_randint(-100, 0), _randint(0, 100)))
+            event.result = socket.recv(1024)
+            event.clear()
+
+    def _printResults(self, results):
+        for threadName in results.keys():
+            self._print("Thread %d report: %r"
+                        % (threadName, results[threadName]))
+
+    def _print(self, msg, level=1, top=False, bottom=False):
+        _printInfo(msg, level=level, lock=self._printLock, top=top,
+                   bottom=bottom)
 
 
 def main():

@@ -94,9 +94,9 @@ class Logger(object):
 # for testing section
 
 
-def printHeader(msg):
-    print("\n"+"*"*(len(msg)+4)+"\n* "+msg+" *\n"+"*"*(len(msg)+4)+"\n")
+# def printHeader(msg):
+#     print("\n"+"*"*(len(msg)+4)+"\n* "+msg+" *\n"+"*"*(len(msg)+4)+"\n")
 
 
-def printFooter(msg):
-    print("\n*** %s ***\n" % (msg))
+# def printFooter(msg):
+#     print("\n*** %s ***\n" % (msg))

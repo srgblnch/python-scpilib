@@ -38,8 +38,6 @@ except:
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
-
-
 from time import sleep as _sleep
 from time import time as _time
 from threading import currentThread as _currentThread
@@ -335,8 +333,8 @@ class scpi(_Logger):
 
     def input(self, line):
         self._debug("Received %r input" % (line))
-        if not self._isAccessAllowed():
-            return ''
+#         if not self._isAccessAllowed():
+#             return ''
         start_t = _time()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
             self._debug("from %r remove %r" % (line, line[-1]))
@@ -386,16 +384,23 @@ class scpi(_Logger):
             self._debug("testing key %s ?= %s" % (key, cmd))
             if cmd.lower().startswith(key.lower()):
                 if cmd.endswith('?'):
-                    self._debug("Requesting read of %s" % (key))
-                    result = self._specialCmds[key].read()
-                    break
+                    if self._isAccessAllowed():
+                        self._debug("Requesting read of %s" % (key))
+                        result = self._specialCmds[key].read()
+                        break
+                    else:
+                        result = float('NaN')
+                        break
                 if cmd.count(' ') > 0:
-                    if self._isWriteAccessAllowed():
+                    if self._isAccessAllowed() and\
+                            self._isWriteAccessAllowed():
                         bar = cmd.split(' ')
                         name, value = bar
                         self._debug("Requesting write of %s with value %s"
                                     % (name, value))
                         result = self._specialCmds[name].write(value)
+                    else:
+                        result = float('NaN')
                     break
                 self._debug("Requesting write of %s without value"
                             % (key))
@@ -421,16 +426,22 @@ class scpi(_Logger):
             try:
                 nextNode = tree[key]
                 if separator == '?':
-                    answer = self._doReadOperation(cmd, tree, key, channelNum,
-                                                   params)
+                    if self._isAccessAllowed():
+                        answer = self._doReadOperation(cmd, tree, key,
+                                                       channelNum, params)
+                    else:
+                        answer = float('NaN')
                 elif separator == ' ' or type(nextNode) == Attribute:
                     # with separator next comes the parameters, without it is
                     # a (write) command without parameters. But in this second
                     # case it must by an Attribute component or it may confuse
                     # with intermediate keys of the command.
-                    if self._isWriteAccessAllowed():
+                    if self._isAccessAllowed() and \
+                            self._isWriteAccessAllowed():
                         answer = self._doWriteOperation(cmd, tree, key,
                                                         channelNum, params)
+                    else:
+                        answer = float('NaN')
                 else:
                     tree = nextNode
             except Exception as e:
@@ -533,6 +544,9 @@ class scpi(_Logger):
         self._forceAccessRelease()
         return self._BookAccess()
 
+    def _LockOwner(self):
+        return self._lock.owner
+
     def _BookWriteAccess(self):
         if self._wlock:
             return self._wlock.request()
@@ -560,4 +574,9 @@ class scpi(_Logger):
     def _forceWriteAccessBook(self):
         self._forceAccessRelease()
         return self._BookAccess()
+
+    def _WLockOwner(self):
+        if self._wlock:
+            return self._wlock.owner
+        return None
     # lock access area ---
