@@ -155,7 +155,7 @@ class scpi(_Logger):
                                                     callback=self.input,
                                                     local=self._local,
                                                     port=self._port,
-                                                    debug=self._debugFlag)
+                                                    debug=self.logState())
         self._services['tcpListener'].listen()
 
     def __buildDataFormatAttribute(self):
@@ -189,7 +189,7 @@ class scpi(_Logger):
         #       :SYSTem:VERSion
 
     def __buildLockerComponent(self, commandTree):
-        self._lock = _Locker(name='readLock', debug=self._debugFlag)
+        self._lock = _Locker(name='readLock', debug=self.logState())
         subTree = self.addComponent('LOCK', commandTree)
         self.addAttribute('owner', subTree, self._lock.Owner, default=True)
         self.addAttribute('release', subTree, readcb=self._lock.release,
@@ -199,7 +199,7 @@ class scpi(_Logger):
                           writecb=self._lock.request)
 
     def __buildWLockerComponent(self, commandTree):
-        self._wlock = _Locker(name='writeLock', debug=self._debugFlag)
+        self._wlock = _Locker(name='writeLock', debug=self.logState())
         subTree = self.addComponent('WLOCK', commandTree)
         self.addAttribute('owner', subTree, self._wlock.Owner, default=True)
         self.addAttribute('release', subTree, readcb=self._wlock.release,

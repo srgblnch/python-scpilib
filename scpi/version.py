@@ -24,17 +24,16 @@ __license__ = "GPLv3+"
 
 # Look at https://en.wikipedia.org/wiki/Software_versioning
 
-__MAJOR_VERSION = 0
-__MINOR_VERSION = 3
-__BUILD_VERSION = 3
-__REVISION_VERSION = 1
-__RELEASE_CANDIDATE = None
+_MAJOR_VERSION = 0
+_MIDDLE_VERSION = 3
+_MINOR_VERSION = 4
+_BUILD_VERSION = 0
+
+def VERSION():
+    return (_MAJOR_VERSION, _MIDDLE_VERSION,
+            _MINOR_VERSION, _BUILD_VERSION)
 
 
 def version():
-    if __RELEASE_CANDIDATE:
-        return "%d.%d-rc%d" % (__MAJOR_VERSION, __MINOR_VERSION,
-                               __RELEASE_CANDIDATE)
-    else:
-        return "%d.%d.%d-%d" % (__MAJOR_VERSION, __MINOR_VERSION,
-                                __BUILD_VERSION, __REVISION_VERSION)
+    return '%d.%d.%d-%d' % (_MAJOR_VERSION, _MIDDLE_VERSION,
+                            _MINOR_VERSION, _BUILD_VERSION)

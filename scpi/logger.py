@@ -23,6 +23,10 @@ __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
 from datetime import datetime as _datetime
+import logging as _logging
+from logging import handlers as _handlers
+from multiprocessing import current_process as _currentProcess
+import os
 from threading import currentThread as _currentThread
 from threading import Lock as _Lock
 from weakref import ref as _weakref
@@ -30,10 +34,12 @@ from weakref import ref as _weakref
 global lock
 lock = _Lock()
 
-_logger_ERROR = 1
-_logger_WARNING = 2
-_logger_INFO = 3
-_logger_DEBUG = 4
+_logger_NOTSET = _logging.NOTSET  # 0
+_logger_CRITICAL = _logging.CRITICAL  # 50
+_logger_ERROR = _logging.ERROR  # 40
+_logger_WARNING = _logging.WARNING  # 30
+_logger_INFO = _logging.INFO  # 20
+_logger_DEBUG = _logging.DEBUG  # 10
 
 
 __all__ = ["Logger"]
@@ -44,15 +50,41 @@ class Logger(object):
        for the other classes in this library.
     '''
 
-    _type = {_logger_ERROR:   'ERROR',
-             _logger_WARNING: 'WARNING',
-             _logger_INFO:    'INFO',
-             _logger_DEBUG:   'DEBUG'}
+    _levelStr = {_logger_NOTSET:   '',
+                 _logger_CRITICAL: 'CRITICAL',
+                 _logger_ERROR:    'ERROR',
+                 _logger_WARNING:  'WARNING',
+                 _logger_INFO:     'INFO',
+                 _logger_DEBUG:    'DEBUG'}
 
-    def __init__(self, name="Logger", debug=False):
+    def __init__(self, name="Logger", debug=False, loggerName=None):
         super(Logger, self).__init__()
+        # prepare vbles ---
         self._name = name
-        self._debugFlag = debug
+        self.__debugFlag = None
+        self.__debuglevel = _logger_NOTSET
+        self.__log2file = False  # TODO
+        self.__loggerName = loggerName or "SCPI"
+        self.__logging_folder = None
+        self.__logging_file = None
+        self._devlogger = _logging.getLogger(self.__loggerName)
+        self._handler = None
+        # setup ---
+        self.logEnable(debug)
+        self.loggingFile()
+        if not len(self._devlogger.handlers):
+            self._devlogger.setLevel(_logger_DEBUG)
+            self._handler = \
+                _handlers.RotatingFileHandler(self.__logging_file,
+                                              maxBytes=10000000,
+                                              backupCount=5)
+            self._handler.setLevel(_logger_NOTSET)
+            formatter = _logging.Formatter('%(asctime)s - %(levelname)s - '
+                                          '%(name)s - %(message)s')
+            self._handler.setFormatter(formatter)
+            self._devlogger.addHandler(self._handler)
+        else:
+            self._handler = self._devlogger.handlers[0]
 
     @property
     def name(self):
@@ -68,35 +100,99 @@ class Logger(object):
                 depth += 1
         return depth
 
+    def loggingFolder(self):
+        if self.__logging_folder is None:
+            logging_folder = "/var/log/%s" % (self.__loggerName)
+            if not self.__buildLoggingFolder(logging_folder):
+                logging_folder = "/tmp/log/%s" % (self.__loggerName)
+                if not self.__buildLoggingFolder(logging_folder):
+                    raise SystemError("No folder for logging available")
+            self.__logging_folder = logging_folder
+        else:
+            if not self.__buildLoggingFolder(self.__logging_folder):
+                raise SystemError("No folder for logging available")
+        return self.__logging_folder
+
+    def __buildLoggingFolder(self, folder):
+        try:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+            return True
+        except:
+            return False
+
+    def loggingFile(self):
+        if self.__logging_file is None:
+            self.__logging_file = \
+                "%s/%s.log" % (self.loggingFolder(), self.__loggerName)
+        return self.__logging_file
+
+    def log2File(self, boolean):
+        if type(boolean) is not bool:
+            raise AssertionError("The parameter must be a boolean")
+        self.__log2file = boolean
+        self.logMessage("log2File() set to %s"
+                        % (self.__log2file), _logger_INFO)
+
+    def logEnable(self, dbg=False):
+        if type(dbg) is not bool:
+            raise AssertionError("The parameter must be a boolean")
+        self.__debugFlag = dbg
+        self.logMessage("logEnable()::Debug flag set to %s"
+                        % (self.__debugFlag), _logger_INFO)
+
+    def logState(self):
+        return self.__debugFlag
+
+    def logLevel(self, level):
+        try:
+            self.__debuglevel = int(level)
+        except:
+            raise AssertionError("The loglevel must be an integer")
+        self._devlogger.setLevel(level)
+        if self._handler is not None:
+            self._handler.setLevel(level)
+        self.logMessage("logEnable()::Debug level set to %s"
+                        % (self.__debuglevel), _logger_INFO)
+
+    def logGetLevel(self):
+        return self.__debuglevel
+
+    @property
+    def _processId(self):
+        return _currentProcess().name
+
     @property
     def _threadId(self):
         return _currentThread().getName()
 
-    def _print(self, msg, type):
-        with lock:
-            when = _datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            print("%s\t%s\t%s\t%s\t%s"
-                  % (when, type, self._threadId, self._name, msg))
+    def logMessage(self, msg, level):
+        _tag = self._levelStr[level]
+        prt_msg = "%s - %s - %s" % (_tag, self.__loggerName, msg)
+        if self.__log2file:
+            method = {_logger_CRITICAL: self._devlogger.critical,
+                      _logger_ERROR: self._devlogger.error,
+                      _logger_WARNING: self._devlogger.warn,
+                      _logger_INFO: self._devlogger.info,
+                      _logger_DEBUG: self._devlogger.debug}
+            method[level](msg)
+        if self.__debugFlag and level >= self.__debuglevel:
+            with lock:
+                when = str(_datetime.now())
+                print("%s %s" % (when, prt_msg))
+
+    def _critical(self, msg):
+        self.logMessage(msg, _logger_CRITICAL)
 
     def _error(self, msg):
-        self._print(msg, self._type[_logger_ERROR])
+        self.logMessage(msg, _logger_ERROR)
 
     def _warning(self, msg):
-        self._print(msg, self._type[_logger_WARNING])
+        self.logMessage(msg, _logger_WARNING)
 
     def _info(self, msg):
-        self._print(msg, self._type[_logger_INFO])
+        self.logMessage(msg, _logger_INFO)
 
     def _debug(self, msg):
-        if self._debugFlag:
-            self._print(msg, self._type[_logger_DEBUG])
-
-# for testing section
-
-
-# def printHeader(msg):
-#     print("\n"+"*"*(len(msg)+4)+"\n* "+msg+" *\n"+"*"*(len(msg)+4)+"\n")
-
-
-# def printFooter(msg):
-#     print("\n*** %s ***\n" % (msg))
+        if self.__debugFlag:
+            self.logMessage(msg, _logger_DEBUG)

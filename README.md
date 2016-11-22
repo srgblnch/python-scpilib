@@ -32,12 +32,12 @@ SCPI library is based on these standards, but *does NOT (fully) complain them ye
 - [ ] "autodoc" using the scpi tree.
 - [x] Read commands with parameters after the '?' separator.
 - [x] Write commands without parameters (no need a ' ' separator).
-- [ ] Lock write access: for one of the clients or internally by the server. Side by the "SYST:LOCK" from the standard, that is included also, this is a "SYST:WLOCK".
+- [x] Lock write access: for one of the clients or internally by the server. Side by the "SYST:LOCK" from the standard, that is included also, this is a "SYST:WLOCK".
   - [ ] Even there is an access lock, should be allowed the command "SYST:LOCK:OWNEr?"
   - Tests pending
-- [ ] Avoid the internal *Logger* and use the [python logging](https://docs.python.org/2/library/logging.html).
+- [x] Avoid the internal *Logger* and use the [python logging](https://docs.python.org/2/library/logging.html).
 - [ ] Compatibility with [python3](https://docs.python.org/3.4/) without losing [python2](https://docs.python.org/2.7/).
-- [ ] Compile with [cython](http://cython.org/) to optimize the execution.
+- [ ] Compile with [cython](http://cython.org/) to optimise the execution.
 
 ## Other ideas to study
 

@@ -47,6 +47,7 @@ from random import randint as _randint
 from sys import stdout as _stdout
 from scpi import scpi
 from scpi.version import version as _version
+from scpi.logger import _logger_DEBUG
 import socket as _socket
 from time import sleep as _sleep
 from time import time as _time
@@ -129,6 +130,12 @@ def testScpi(debug=False):
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug, writeLock=True) as scpiObj:
+        if debug:
+            print(".")
+            scpiObj.logLevel(_logger_DEBUG)
+            scpiObj.log2File(True)
+            scpiObj._debug("Log information: %s" % (scpiObj.loggingFile()))
+            print("..")
         results = []
         resultMsgs = []
         for test in [checkIDN,
