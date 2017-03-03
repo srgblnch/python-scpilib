@@ -104,6 +104,32 @@ class Logger(object):
                 depth += 1
         return depth
 
+    @property
+    def devlogger(self):
+        return self._devlogger
+
+    @devlogger.setter
+    def devlogger(self, devlogger):
+        self._devlogger = devlogger
+
+    @property
+    def handler(self):
+        return self._handler
+
+    def addHandler(self, handler):
+        self._devlogger.addHandler(handler)
+
+    def removeHandler(self, handler=None):
+        if handler:
+            self._devlogger.removeHandler(handler)
+        else:
+            self._devlogger.removeHandler(self._handler)
+
+    def replaceHandler(self, handler):
+        self._devlogger.removeHandler(self._handler)
+        self._devlogger.addHandler(handler)
+        self._handler = handler
+
     def loggingFolder(self):
         if self.__logging_folder is None:
             logging_folder = "/var/log/%s" % (self.__loggerName)
