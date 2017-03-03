@@ -181,7 +181,10 @@ class Attribute(DictKey):
 
     @parent.setter
     def parent(self, value):
-        self._parent = value
+        if value is not None:
+            self.logEnable(value.logState())
+            self.logLevel(value.logGetLevel())
+            self._parent = value
 
     @property
     def hasChannels(self):
@@ -431,7 +434,10 @@ class Component(_Logger, dict):
 
     @parent.setter
     def parent(self, value):
-        self._parent = value
+        if value is not None:
+            self.logEnable(value.logState())
+            self.logLevel(value.logGetLevel())
+            self._parent = value
 
     @property
     def default(self):

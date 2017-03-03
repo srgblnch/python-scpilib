@@ -70,8 +70,25 @@ class Logger(object):
         self._devlogger = _logging.getLogger(self.__loggerName)
         self._handler = None
         # setup ---
-        self.logEnable(debug)
+        self.logEnable(True)
+        if debug:
+            self.logLevel(_logger_DEBUG)
+        else:
+            self.logLevel(_logger_INFO)
         self.loggingFile()
+        if not len(self._devlogger.handlers):
+            self._devlogger.setLevel(_logger_DEBUG)
+            self._handler = \
+                _handlers.RotatingFileHandler(self.__logging_file,
+                                              maxBytes=10000000,
+                                              backupCount=5)
+            self._handler.setLevel(_logger_NOTSET)
+            formatter = _logging.Formatter('%(asctime)s - %(levelname)s - '
+                                          '%(name)s - %(message)s')
+            self._handler.setFormatter(formatter)
+            self._devlogger.addHandler(self._handler)
+        else:
+            self._handler = self._devlogger.handlers[0]
 
     @property
     def name(self):
@@ -141,6 +158,10 @@ class Logger(object):
             self._handler.setLevel(level)
         self.logMessage("logEnable()::Debug level set to %s"
                         % (self.__debuglevel), _logger_INFO)
+#         if self._handler is not None:
+#             self._handler.setLevel(level)
+#         self.logMessage("logEnable()::Debug level set to %s"
+#                         % (self.__debuglevel), _logger_INFO)
 
     def logGetLevel(self):
         return self.__debuglevel
