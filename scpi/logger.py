@@ -57,8 +57,9 @@ class Logger(object):
                  _logger_INFO:     'INFO',
                  _logger_DEBUG:    'DEBUG'}
 
-    def __init__(self, name="Logger", debug=False, loggerName=None):
-        super(Logger, self).__init__()
+    def __init__(self, name="Logger", debug=False, loggerName=None,
+                 *args, **kwargs):
+        super(Logger, self).__init__(*args, **kwargs)
         # prepare vbles ---
         self._name = name
         self.__debugFlag = None

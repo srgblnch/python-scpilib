@@ -72,9 +72,9 @@ class scpi(_Logger):
        'remoteAllowed' to True.
     '''
     def __init__(self, commandTree=None, specialCommands=None,
-                 local=True, port=5025, autoOpen=False, debug=False,
-                 services=None, writeLock=False):
-        super(scpi, self).__init__(debug=debug)
+                 local=True, port=5025, autoOpen=False,
+                 services=None, writeLock=False, *args, **kwargs):
+        super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
         self._commandTree.logEnable(self.logState())
