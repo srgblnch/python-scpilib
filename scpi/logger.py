@@ -72,19 +72,6 @@ class Logger(object):
         # setup ---
         self.logEnable(debug)
         self.loggingFile()
-        if not len(self._devlogger.handlers):
-            self._devlogger.setLevel(_logger_DEBUG)
-            self._handler = \
-                _handlers.RotatingFileHandler(self.__logging_file,
-                                              maxBytes=10000000,
-                                              backupCount=5)
-            self._handler.setLevel(_logger_NOTSET)
-            formatter = _logging.Formatter('%(asctime)s - %(levelname)s - '
-                                          '%(name)s - %(message)s')
-            self._handler.setFormatter(formatter)
-            self._devlogger.addHandler(self._handler)
-        else:
-            self._handler = self._devlogger.handlers[0]
 
     @property
     def name(self):
@@ -176,10 +163,7 @@ class Logger(object):
                       _logger_INFO: self._devlogger.info,
                       _logger_DEBUG: self._devlogger.debug}
             method[level](msg)
-        if self.__debugFlag and level >= self.__debuglevel:
-            with lock:
-                when = str(_datetime.now())
-                print("%s %s" % (when, prt_msg))
+
 
     def _critical(self, msg):
         self.logMessage(msg, _logger_CRITICAL)
