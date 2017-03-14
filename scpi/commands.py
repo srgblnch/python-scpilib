@@ -235,9 +235,10 @@ class Attribute(DictKey):
         if self._read_cb is not None:
             if self.hasChannels and chlst is not None:
                 if params:
-                    retValue = self._callbackChannels(chlst, params)
+                    retValue = self._callbackChannels(self._read_cb, chlst,
+                                                      params)
                 else:
-                    retValue = self._callbackChannels(chlst)
+                    retValue = self._callbackChannels(self._read_cb, chlst)
             else:
                 if params:
                     retValue = self._read_cb(params)
@@ -320,32 +321,32 @@ class Attribute(DictKey):
                 raise ValueError("Not allowed to write %s, only %s "
                                  "are accepted" % (value, self.allowedArgins))
             if self.hasChannels and chlst is not None:
-                retValue = self._callbackChannels(chlst, value)
+                retValue = self._callbackChannels(self._write_cb, chlst, value)
             else:
                 retValue = self._write_cb(value)
                 self._debug("Attribute %s write %s: %s"
                             % (self.name, value, retValue))
             return retValue
 
-    def _callbackChannels(self, chlst, value=None):
+    def _callbackChannels(self, method_cb, chlst, value=None):
         self._checkAllChannelsAreWithinBoundaries(chlst)
         if len(chlst) == 1:
             ch = chlst[0]
             if value is None:
-                retValue = self._read_cb(ch)
+                retValue = method_cb(ch)
                 self._debug("Attribute %s read from channel %d: %s"
                             % (self.name, ch, retValue))
             else:
-                retValue = self._write_cb(ch, value)
+                retValue = method_cb(ch, value)
                 self._debug("Attribute %s write %s in channel %d: %s"
                             % (self.name, value, ch, retValue))
         else:
             if value is None:
-                retValue = self._read_cb(chlst)
+                retValue = method_cb(chlst)
                 self._debug("Attribute %s read for channel set %s: %s"
                             % (self.name, chlst, retValue))
             else:
-                retValue = self._write_cb(chlst, value)
+                retValue = method_cb(chlst, value)
                 self._debug("Attribute %s write %s for channel set %s: %s"
                             % (self.name, value, chlst, retValue))
         return retValue
