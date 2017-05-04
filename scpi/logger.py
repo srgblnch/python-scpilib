@@ -58,13 +58,13 @@ class Logger(object):
                  _logger_DEBUG:    'DEBUG'}
 
     def __init__(self, name="Logger", debug=False, loggerName=None,
-                 *args, **kwargs):
+                 log2File=False, *args, **kwargs):
         super(Logger, self).__init__(*args, **kwargs)
         # prepare vbles ---
         self._name = name
         self.__debugFlag = None
         self.__debuglevel = _logger_NOTSET
-        self.__log2file = False  # TODO
+        self.__log2file = log2File
         self.__loggerName = loggerName or "SCPI"
         self.__logging_folder = None
         self.__logging_file = None
