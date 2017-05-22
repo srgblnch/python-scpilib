@@ -17,16 +17,24 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+__author__ = "Sergi Blanch-Torne"
+__email__ = "sblanch@cells.es"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
+# we use semantic versioning (http://semver.org/) and we update it using the
+# bumpversion script (https://github.com/peritus/bumpversion)
+__version__ = '0.3.4-alpha'
+
 
 from setuptools import setup, find_packages
-from scpi import version
 
 
 setup(name = 'scpi',
       license = "GPLv3+",
       description = "Python module to provide scpi functionality "\
                     "from instrument side",
-      version = version.version(),
+      version = __version__,
       author = "Sergi Blanch-Torn\'e",
       author_email = "sblanch@cells.es",
       classifiers = ['Development Status :: 2 - Pre-Alpha',

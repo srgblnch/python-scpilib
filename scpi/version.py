@@ -22,18 +22,18 @@ __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
-# Look at https://en.wikipedia.org/wiki/Software_versioning
-
-_MAJOR_VERSION = 0
-_MIDDLE_VERSION = 3
-_MINOR_VERSION = 4
-_BUILD_VERSION = 4
+__version__ = '0.3.4-alpha'
 
 def VERSION():
-    return (_MAJOR_VERSION, _MIDDLE_VERSION,
-            _MINOR_VERSION, _BUILD_VERSION)
-
+    if '-' in __version__:
+        _v, _rel = __version__.split('-')
+    else:
+        _v, _rel = __version__, ''
+    _v = [int(n) for n in _v.split('.')]
+    if len(_rel) > 0:
+        _v += [_rel]
+    return tuple(_v)
 
 def version():
-    return '%d.%d.%d-%d' % (_MAJOR_VERSION, _MIDDLE_VERSION,
-                            _MINOR_VERSION, _BUILD_VERSION)
+    return __version__
+
