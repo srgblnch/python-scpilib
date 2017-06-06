@@ -17,34 +17,52 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+__author__ = "Sergi Blanch-Torne"
+__email__ = "sblanch@cells.es"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
+__project__ = 'scpi'
+__description__ = "Python module to provide scpi functionality "\
+                  "from instrument side"
+__longDesc__ = """
+This module has been prepared to provide an instrument the functionality
+to be accessed via the SCPI Protocol.
+
+By now it only supports network connection, by default port 5025.
+"""
+__url__ = "https://github.com/srgblnch/scpi"
+# we use semantic versioning (http://semver.org/) and we update it using the
+# bumpversion script (https://github.com/peritus/bumpversion)
+__version__ = '0.3.5-alpha'
+
 
 from setuptools import setup, find_packages
-from scpi import version
 
+classifiers = [
+    'Development Status :: 2 - Pre-Alpha',
+    'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
+    'License :: OSI Approved :: '
+    'GNU General Public License v3 or later (GPLv3+)',
+    'Operating System :: POSIX',
+    'Programming Language :: Python',
+    'Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator',
+    'Topic :: Software Development :: Embedded Systems',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+    'Topic :: System :: Hardware',
+    ''],
 
-setup(name = 'scpi',
-      license = "GPLv3+",
-      description = "Python module to provide scpi functionality "\
-                    "from instrument side",
-      version = version.version(),
-      author = "Sergi Blanch-Torn\'e",
-      author_email = "sblanch@cells.es",
-      classifiers = ['Development Status :: 2 - Pre-Alpha',
-                     'Intended Audience :: Developers',
-                     'Intended Audience :: Science/Research',
-                     'License :: OSI Approved :: '\
-                        'GNU General Public License v3 or later (GPLv3+)',
-                     'Operating System :: POSIX',
-                     #'Programming Language :: Cython',
-                     'Programming Language :: Python',
-                     'Topic :: Scientific/Engineering :: '\
-                        'Interface Engine/Protocol Translator',
-                     'Topic :: Software Development :: Embedded Systems',
-                     'Topic :: Software Development :: Libraries :: '\
-                        'Python Modules',
-                     ''],
+setup(name = __project__,
+      license = __license__,
+      description = __description__,
+      long_description = __longDesc__,
+      version = __version__,
+      author = __author__,
+      author_email = __email__,
+      classifiers = classifiers,
       packages=find_packages(),
-      url="https://github.com/srgblnch/scpi",
+      url=__url__,
 )
 
 #for the classifiers review see:
