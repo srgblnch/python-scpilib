@@ -503,14 +503,16 @@ class Component(_Logger, dict):
             'minimumkey' characters, with an key in the dictionary to return
             its content.
         '''
-        self._debug("available keywords: %s" % (self.keys()))
+        self._debug("looking for %r between keywords: %s" % (key, self.keys()))
         for keyword in self.keys():
-            if keyword == key:
+            if keyword == key:  # special compare for shorter names
+                self._debug("key %r found as keyword %r" % (key, keyword))
                 key = keyword
                 break
         try:
             val = dict.__getitem__(self, key)
-        except:
+        except Exception as e:
+            self._error("Cannot get the item %s: %s" % (key, e))
             raise KeyError("%s not found" % (key))
         self._debug("GET %s['%r'] = %s"
                     % (str(dict.get(self, 'name_label')), key, str(val)))
@@ -534,12 +536,18 @@ class Component(_Logger, dict):
 
     def read(self, chlst=None, params=None):
         if self._defaultKey:
-            return self.__getitem__(self._defaultKey).read(chlst, params)
+            try:
+                return self.__getitem__(self._defaultKey).read(chlst, params)
+            except:
+                pass
         return (float('NaN'), None)
 
     def write(self, chlst=None, value=None):
         if self._defaultKey:
-            return self.__getitem__(self._defaultKey).write(chlst, value)
+            try:
+                return self.__getitem__(self._defaultKey).write(chlst, value)
+            except:
+                pass
         return (float('NaN'), None)
 
 

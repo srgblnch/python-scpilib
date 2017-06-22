@@ -1,3 +1,4 @@
+from __future__ import print_function
 # -*- coding: utf-8 -*-
 # ##### BEGIN GPL LICENSE BLOCK #####
 #
@@ -32,45 +33,90 @@ from numpy import array
 from scpi import scpi
 from scpi.version import version as _version
 from scpiObj import InstrumentIdentification
+import sys
+from telnetlib import Telnet
+from time import sleep
 
 
-def commandTime(scpiObj, cmd, tests=1, cmdRepeat=1):
+def telnetRequest(tn, cmd, scpiObj):
+    start_t = datetime.now()
+    tn.write(cmd)
+    x = tn.read_until('\n')
+    t = datetime.now() - start_t - scpiObj.inputExecTime
+    return t
+
+
+def scpiRequest(scpiObj, cmd):
+    start_t = datetime.now()
+    scpiObj.input(cmd)
+    return datetime.now() - start_t - scpiObj.inputExecTime
+
+
+def commandTime(scpiObj, tn, cmd, tests=1, repeat=1):
     i = 0
-    total_t = []
+    # scpi_t = []
+    telnet_t = []
+    input_t = []
     callback_t = []
     start_t = datetime.now()
+    print("\n%d tests of command %s repeated %d times" % (tests, cmd, repeat))
     while i < tests:
-        scpiObj.input((cmd+";")*cmdRepeat)
-        total_t.append(scpiObj.inputExecTime.total_seconds())
+        _send = (cmd+";")*repeat
+        telnet_t.append(telnetRequest(tn, _send, scpiObj).total_seconds())
+        # scpi_t.append(scpiRequest(scpiObj, _send).total_seconds())
+        diff_t = scpiObj.inputExecTime - scpiObj.callbackExecTime
+        input_t.append(diff_t.total_seconds())
         callback_t.append(scpiObj.callbackExecTime.total_seconds())
-        #scpiObj.callbackExecList
+        # scpiObj.callbackExecList
+        print("\Test execution: %s (%d/%d)"
+              % (['|', '/', '-', '\\'][i%4], i, tests), end='\r')
+        sys.stdout.flush()
         i += 1
-    total_t = array(total_t)
+    # scpi_t = array(scpi_t)
+    telnet_t = array(telnet_t)
+    input_t = array(input_t)
     callback_t = array(callback_t)
-    print("\nAfter %4d executions of %r (repeated %4d times) (%s)"
-          "\n\t%-14s (std %-14s) total call"
-          "\n\t%-14s (std %-14s) in callback\n"
-          % (tests, cmd, cmdRepeat, datetime.now()-start_t,
-             timedelta(seconds=total_t.mean()),
-             timedelta(seconds=total_t.std()),
+    print("After %4d executions of %r (repeated %4d times) (%s)"
+          "\n\t%-14s (std %-14s, max %-14s) in telnet section"
+          # "\n\t%-14s (std %-14s, max %-14s) in scpi section"
+          "\n\t%-14s (std %-14s, max %-14s) inside input pre&post"
+          "\n\t%-14s (std %-14s, max %-14s) inside callback"
+          % (tests, cmd, repeat, datetime.now()-start_t,
+             timedelta(seconds=telnet_t.mean()),
+             timedelta(seconds=telnet_t.std()),
+             timedelta(seconds=telnet_t.max()),
+             # timedelta(seconds=scpi_t.mean()),
+             # timedelta(seconds=scpi_t.std()),
+             # timedelta(seconds=scpi_t.max()),
+             timedelta(seconds=input_t.mean()),
+             timedelta(seconds=input_t.std()),
+             timedelta(seconds=input_t.max()),
              timedelta(seconds=callback_t.mean()),
-             timedelta(seconds=callback_t.std())))
+             timedelta(seconds=callback_t.std()),
+             timedelta(seconds=callback_t.max()),
+             ))
+    sleep(1)
 
 
 def main():
-    scpiObj = scpi(local=True, debug=True, log2File=True)
+    scpiObj = scpi(name="test", local=True, debug=True, log2File=True)
     scpiObj.open()
+    tn = Telnet('::1', 5025)
     identity = InstrumentIdentification('ALBA', 'test', 0, _version())
     scpiObj.addSpecialCommand('IDN', identity.idn)
-    for j in [1, 10, 100]:
-        for i in [1000]:
-            commandTime(scpiObj, '*IDN?', i, j)
+#     for j in [10, 100]:
+#         for i in [1000]:
+#             commandTime(scpiObj, tn, '*IDN?', i, j)
     numericAttr = AttrTest()
-    scpiObj.addCommand('value', readcb=numericAttr.readTest)
-    for j in [1, 10, 100]:
-        for i in [1000]:
-            commandTime(scpiObj, 'value?', i, j)
-    
+    for k in range(2,6):
+        cmd = ('%svalue:'%(chr(96+k))*k)[:-1]
+        scpiObj.addCommand(cmd, readcb=numericAttr.readTest)
+        for j in [10, 100]:
+            for i in [1000]:
+                commandTime(scpiObj, tn, cmd+'?', i, j)
+    tn.close()
+    sleep(1)
+    scpiObj.close()
 
 
 if __name__ == '__main__':

@@ -78,7 +78,7 @@ class scpi(_Logger):
                  services=None, writeLock=False, *args, **kwargs):
         super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
-        self._commandTree = commandTree or Component()
+        self._commandTree = commandTree or Component(name="r00t")
         self._commandTree.logEnable(self.logState())
         self._commandTree.logLevel(self.logGetLevel())
         self._specialCmds = specialCommands or {}
@@ -465,10 +465,11 @@ class scpi(_Logger):
         tree = self._commandTree
         channelNum = []
         for key in keywords:
-            self._debug("processing %s" % key)
+            self._debug("processing %r" % key)
             key, separator, params = self._splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
+                # self._debug("key %s in tree %s" % (key, tree.keys()))
                 nextNode = tree[key]
                 if separator == '?':
                     if self._isAccessAllowed():
