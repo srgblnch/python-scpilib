@@ -395,9 +395,9 @@ class scpi(_Logger):
         self._last_input_exec_t = _datetime.now()-start_t
         self._last_input_exec_cbs_t = cb_t
         self._debug("%d Query/ies reply send after %s of the request "
-                    "(callback times %s, each %s)"
+                    "(callback times %s)"
                     % (i+1, self._last_input_exec_t,
-                       self._last_input_exec_cbs_t, times))
+                       self._last_input_exec_cbs_t))
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
