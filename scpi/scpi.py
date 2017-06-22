@@ -38,8 +38,10 @@ except:
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
+
+from datetime import datetime as _datetime
+from datetime import timedelta as _timedelta
 from time import sleep as _sleep
-from time import time as _time
 from threading import currentThread as _currentThread
 from traceback import print_exc
 
@@ -336,7 +338,7 @@ class scpi(_Logger):
         self._debug("Received %r input" % (line))
 #         if not self._isAccessAllowed():
 #             return ''
-        start_t = _time()
+        start_t = _datetime.now()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
             self._debug("from %r remove %r" % (line, line[-1]))
             line = line[:-1]
@@ -344,13 +346,16 @@ class scpi(_Logger):
             return ''
         line = line.split(';')
         results = []
+        times = []
         for i, command in enumerate(line):
             command = command.strip()  # avoid '\n' terminator if exist
             self._debug("Processing %dth command: %r" % (i+1, command))
             if command.startswith('*'):
-                answer = self._process_special_command(command[1:])
+                answer, cmd_t = self._process_special_command(command[1:])
                 if answer is not None:
                     results.append(answer)
+                if cmd_t is not None:
+                    times.append(cmd_t)
             elif command.startswith(':'):
                 if i == 0:
                     self._error("For command %r: Not possible to start "
@@ -363,19 +368,29 @@ class scpi(_Logger):
                     command = "".join("%s%s" % (line[i-1].rsplit(':', 1)[0],
                                                 command))
                     self._debug("Command expanded to %r" % (command))
-                    answer = self._process_normal_command(command)
+                    answer, cmd_t = self._process_normal_command(command)
                     if answer is not None:
                         results.append(answer)
+                    if cmd_t is not None:
+                        times.append(cmd_t)
             else:
-                answer = self._process_normal_command(command)
+                answer, cmd_t = self._process_normal_command(command)
                 if answer is not None:
                     results.append(answer)
+                if cmd_t is not None:
+                    times.append(cmd_t)
         self._debug("Answers: %r" % (results))
         answer = ""
         for res in results:
             answer = "".join("%s%s;" % (answer, res))
         self._debug("Answer: %r" % (answer))
-        self._debug("Query reply send after %g ms" % ((_time()-start_t)*1000))
+        cb_t = _timedelta(0)
+        for i, t in enumerate(times):
+            cb_t += t
+            times[i] = "%s" % t
+        self._debug("%d Query/ies reply send after %s of the request "
+                    "(callback times %s, each %s)"
+                    % (i+1, _datetime.now()-start_t, cb_t, times))
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
@@ -383,8 +398,9 @@ class scpi(_Logger):
         return ''
 
     def _process_special_command(self, cmd):
-        start_t = _time()
+        start_t = _datetime.now()
         result = None
+        cmd_t = None
         # FIXME: ugly
         self._debug("current special keys: %s" % (self._specialCmds.keys()))
         if cmd.count(':') > 0:  # Not expected in special commands
@@ -395,7 +411,7 @@ class scpi(_Logger):
                 if cmd.endswith('?'):
                     if self._isAccessAllowed():
                         self._debug("Requesting read of %s" % (key))
-                        result = self._specialCmds[key].read()
+                        result, cmd_t = self._specialCmds[key].read()
                         break
                     else:
                         result = float('NaN')
@@ -410,21 +426,22 @@ class scpi(_Logger):
                         # TODO: By default don't provide a readback,
                         #       but there will be an SCPI command to return
                         #       an answer to the write commands
-                        self._specialCmds[name].write(value)
+                        cmd_t = self._specialCmds[name].write(value)
                     break
                 self._debug("Requesting write of %s without value" % (key))
                 # TODO: By default don't provide a readback,
                 #       but there will be an SCPI command to return
                 #       an answer to the write commands
-                self._specialCmds[key].write()
+                cmd_t = self._specialCmds[key].write()
                 break
-        self._debug("special command %s processed in %g ms"
-                    % (cmd, (_time()-start_t)*1000))
-        return result
+        self._debug("special command %s processed in %s (callback time %s)"
+                    % (cmd, (_datetime.now()-start_t), cmd_t))
+        return (result, cmd_t)
 
     def _process_normal_command(self, cmd):
-        start_t = _time()
+        start_t = _datetime()
         answer = None
+        cmd_t = None
         keywords = cmd.split(':')
         tree = self._commandTree
         channelNum = []
@@ -436,8 +453,9 @@ class scpi(_Logger):
                 nextNode = tree[key]
                 if separator == '?':
                     if self._isAccessAllowed():
-                        answer = self._doReadOperation(cmd, tree, key,
-                                                       channelNum, params)
+                        answer, cmd_t = self._doReadOperation(cmd, tree, key,
+                                                              channelNum,
+                                                              params)
                 elif separator == ' ' or type(nextNode) == Attribute:
                     # with separator next comes the parameters, without it is
                     # a (write) command without parameters. But in this second
@@ -445,7 +463,8 @@ class scpi(_Logger):
                     # with intermediate keys of the command.
                     if self._isAccessAllowed() and \
                             self._isWriteAccessAllowed():
-                        self._doWriteOperation(cmd, tree, key, channelNum, params)
+                        cmd_t = self._doWriteOperation(cmd, tree, key,
+                                                       channelNum, params)
                 else:
                     tree = nextNode
             except Exception as e:
@@ -456,9 +475,9 @@ class scpi(_Logger):
                     answer = float('NaN')
                 print_exc()
                 break
-        self._debug("command %s processed in %g ms (%r)"
-                    % (cmd, (_time()-start_t)*1000, answer))
-        return answer
+        self._debug("command %s processed in %s (%r) (callback time %s)"
+                    % (cmd, (_datetime.now()-start_t), answer, cmd_t))
+        return (answer, cmd_t)
 
     def _splitParams(self, key):
         for separator, operation in [['?', 'read'], [' ', 'write']]:
@@ -481,21 +500,22 @@ class scpi(_Logger):
 
     def _doReadOperation(self, cmd, tree, key, channelNum, params):
         try:
+            cmd_t = None
             self._debug("Leaf of the tree %r%s"
                         % (key, " (with params=%s)"
                            % params if params else ""))
             if len(channelNum) > 0:
                 self._debug("do read with channel")
                 if params:
-                    answer = tree[key].read(chlst=channelNum,
+                    answer, cmd_t = tree[key].read(chlst=channelNum,
                                             params=params)
                 else:
-                    answer = tree[key].read(chlst=channelNum)
+                    answer, cmd_t = tree[key].read(chlst=channelNum)
             else:
                 if params:
-                    answer = tree[key].read(params=params)
+                    answer, cmd_t = tree[key].read(params=params)
                 else:
-                    answer = tree[key].read()
+                    answer, cmd_t = tree[key].read()
             # With the support for list readings (its conversion
             # to '#NMMMMMMMMM...' stream:
             # TODO: This will require a DataFormat feature to
@@ -506,7 +526,7 @@ class scpi(_Logger):
             self._warning("Exception reading '%s': %s" % (cmd, e))
             answer = float('NaN')
             print_exc()
-        return answer
+        return (answer, cmd_t)
 
     def _doWriteOperation(self, cmd, tree, key, channelNum, params):
         # TODO: By default don't provide a readback, but there will be an SCPI
@@ -516,19 +536,15 @@ class scpi(_Logger):
             if len(channelNum) > 0:
                 self._debug("do write (with channel %s) %s: %s"
                             % (channelNum, key, params))
-                answer = tree[key].write(chlst=channelNum, value=params)
-#                 if answer is None:
-#                     answer = tree[key].read(channelNum)
+                cmd_t = tree[key].write(chlst=channelNum, value=params)
             else:
                 self._debug("do write %s: %s" % (key, params))
-                answer = tree[key].write(value=params)
-#                 if answer is None:
-#                     answer = tree[key].read()
+                cmd_t = tree[key].write(value=params)
         except Exception as e:
             self._warning("Exception writing '%s': %s" % (cmd, e))
-            answer = None  # float('NaN')
+            cmd_t = None
             print_exc()
-        return answer
+        return cmd_t
 
     # input/output area ---
 

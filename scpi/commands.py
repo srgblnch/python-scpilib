@@ -55,6 +55,7 @@ try:
 except:
     _sp = False
 
+from datetime import datetime as _datetime
 
 if _np and not _sp:
     _float16 = _np_float16
@@ -233,19 +234,26 @@ class Attribute(DictKey):
 
     def read(self, chlst=None, params=None):
         if self._read_cb is not None:
+            diff_t = None
             if self.hasChannels and chlst is not None:
                 if params:
-                    retValue = self._callbackChannels(self._read_cb, chlst,
-                                                      params)
+                    retValue, diff_t = self._callbackChannels(self._read_cb,
+                                                              chlst, params)
                 else:
-                    retValue = self._callbackChannels(self._read_cb, chlst)
+                    retValue, diff_t = self._callbackChannels(self._read_cb,
+                                                              chlst)
             else:
                 if params:
+                    start_t = _datetime.now()
                     retValue = self._read_cb(params)
+                    diff_t = _datetime.now() - start_t
                 else:
+                    start_t = _datetime.now()
                     retValue = self._read_cb()
+                    diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s read: %s" % (self.name, retValue))
-            return self._checkArray(retValue)
+            return (self._checkArray(retValue), None)
+        return (None, None)
 
     def _checkArray(self, argin):
         # if answer is a list, manipulate it to follow the rule
@@ -316,40 +324,54 @@ class Attribute(DictKey):
     def write(self, chlst=None, value=None):
         self._debug("%s.write(ch=%s, value=%s)" % (self.name, chlst, value))
         if self._write_cb is not None:
+            diff_t = None
             if self.allowedArgins is not None and \
                     value not in self.allowedArgins:
                 raise ValueError("Not allowed to write %s, only %s "
                                  "are accepted" % (value, self.allowedArgins))
             if self.hasChannels and chlst is not None:
-                retValue = self._callbackChannels(self._write_cb, chlst, value)
+                retValue, diff_t = self._callbackChannels(self._write_cb,
+                                                          chlst, value)
             else:
+                start_t = _datetime.now()
                 retValue = self._write_cb(value)
+                diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s write %s: %s"
                             % (self.name, value, retValue))
-            return retValue
+            return (retValue, diff_t)
+        return (None, None)
 
     def _callbackChannels(self, method_cb, chlst, value=None):
+        diff_t = None
         self._checkAllChannelsAreWithinBoundaries(chlst)
         if len(chlst) == 1:
             ch = chlst[0]
             if value is None:
+                start_t = _datetime.now()
                 retValue = method_cb(ch)
+                diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s read from channel %d: %s"
                             % (self.name, ch, retValue))
             else:
+                start_t = _datetime.now()
                 retValue = method_cb(ch, value)
+                diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s write %s in channel %d: %s"
                             % (self.name, value, ch, retValue))
         else:
             if value is None:
+                start_t = _datetime.now()
                 retValue = method_cb(chlst)
+                diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s read for channel set %s: %s"
                             % (self.name, chlst, retValue))
             else:
+                start_t = _datetime.now()
                 retValue = method_cb(chlst, value)
+                diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s write %s for channel set %s: %s"
                             % (self.name, value, chlst, retValue))
-        return retValue
+        return (retValue, diff_t)
 
     def _checkAllChannelsAreWithinBoundaries(self, chlst):
         if len(self._channelTree) != len(chlst):
@@ -569,8 +591,10 @@ class SpecialCommand(Component):
 
     def read(self):
         if self._readcb is not None:
-            return self._readcb()
-        return float("NaN")
+            start_t = _datetime.now()
+            answer = self._readcb()
+            return (answer, _datetime.now()-start_t)
+        return (float("NaN"), None)
 
     @property
     def writecb(self):
@@ -581,12 +605,17 @@ class SpecialCommand(Component):
         self._writecb = function
 
     def write(self, value=None):
+        diff_t = None
         if self._writecb:
             if value:
+                start_t = _datetime.now()
                 self._writecb(value)
+                diff_t = _datetime.now() - start_t
             else:
+                start_t = _datetime.now()
                 self._writecb()
-        return float("NaN")
+                diff_t = _datetime.now() - start_t
+        return diff_t
 
 
 def BuildSpecialCmd(name, parent, readcb, writecb=None):
