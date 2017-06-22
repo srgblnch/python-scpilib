@@ -97,6 +97,9 @@ class scpi(_Logger):
             self.open()
         self.__buildDataFormatAttribute()
         self.__buildSystemComponent(writeLock)
+        self._last_input_exec_t = None
+        self._last_input_exec_cbs_t = None
+        self._last_input_exec_cb_lst = []
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -385,17 +388,33 @@ class scpi(_Logger):
             answer = "".join("%s%s;" % (answer, res))
         self._debug("Answer: %r" % (answer))
         cb_t = _timedelta(0)
+        self._last_input_exec_cb_lst = times
         for i, t in enumerate(times):
             cb_t += t
             times[i] = "%s" % t
+        self._last_input_exec_t = _datetime.now()-start_t
+        self._last_input_exec_cbs_t = cb_t
         self._debug("%d Query/ies reply send after %s of the request "
                     "(callback times %s, each %s)"
-                    % (i+1, _datetime.now()-start_t, cb_t, times))
+                    % (i+1, self._last_input_exec_t,
+                       self._last_input_exec_cbs_t, times))
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
         # return answer + '\r\n'
         return ''
+
+    @property
+    def inputExecTime(self):
+        return self._last_input_exec_t
+
+    @property
+    def callbackExecTime(self):
+        return self._last_input_exec_cbs_t
+
+    @property
+    def callbackExecList(self):
+        return self._last_input_exec_cb_lst
 
     def _process_special_command(self, cmd):
         start_t = _datetime.now()
@@ -439,7 +458,7 @@ class scpi(_Logger):
         return (result, cmd_t)
 
     def _process_normal_command(self, cmd):
-        start_t = _datetime()
+        start_t = _datetime.now()
         answer = None
         cmd_t = None
         keywords = cmd.split(':')
@@ -465,6 +484,7 @@ class scpi(_Logger):
                             self._isWriteAccessAllowed():
                         cmd_t = self._doWriteOperation(cmd, tree, key,
                                                        channelNum, params)
+                        self._info(cmd_t)
                 else:
                     tree = nextNode
             except Exception as e:

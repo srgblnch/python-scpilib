@@ -252,7 +252,7 @@ class Attribute(DictKey):
                     retValue = self._read_cb()
                     diff_t = _datetime.now() - start_t
                 self._debug("Attribute %s read: %s" % (self.name, retValue))
-            return (self._checkArray(retValue), None)
+            return (self._checkArray(retValue), diff_t)
         return (None, None)
 
     def _checkArray(self, argin):
@@ -535,12 +535,12 @@ class Component(_Logger, dict):
     def read(self, chlst=None, params=None):
         if self._defaultKey:
             return self.__getitem__(self._defaultKey).read(chlst, params)
-        return float('NaN')
+        return (float('NaN'), None)
 
     def write(self, chlst=None, value=None):
         if self._defaultKey:
             return self.__getitem__(self._defaultKey).write(chlst, value)
-        return float('NaN')
+        return (float('NaN'), None)
 
 
 def BuildComponent(name=None, parent=None):
