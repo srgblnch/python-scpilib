@@ -254,7 +254,13 @@ class TcpListener(_Logger):
         connectionName = '%s:%s' % (address[0], address[1])
         self._debug("Thread for %s connection" % (connectionName))
         while not self._joinEvent.isSet():
-            data = connection.recv(1024)
+            try:
+                data = connection.recv(102400)
+                # This limits the length of the input. Not only single command,
+                # but also concatenation of many in one request.
+            except Exception as e:
+                self._error("Exception in %s: %r" % (connectionName, e))
+                return  # close the connection
             self._info("received from %s: %d bytes %r"
                        % (connectionName, len(data), data))
             if len(data) == 0:
