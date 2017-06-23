@@ -159,6 +159,26 @@ class scpi(_Logger):
                                                     debug=self.logState())
         self._services['tcpListener'].listen()
 
+    def addConnectionHook(self, hook):
+        for service in self._services.itervalues():
+            if hasattr(service, 'addConnectionHook'):
+                try:
+                    service.addConnectionHook(hook)
+                except Exception as e:
+                    self._error("Exception setting a hook to %s: %e"
+                                % (service, e))
+            else:
+                self._warning("Service %s doesn't support hooks" % (service))
+
+    def removeConnectionHook(self, hook):
+        for service in self._services.itervalues():
+            if hasattr(service, 'removeConnectionHook'):
+                if not service.removeConnectionHook(hook):
+                    self._warning("Service %s refuse to remove the hook"
+                                  % (service))
+            else:
+                self._warning("Service %s doesn't support hooks" % (service))
+
     def __buildDataFormatAttribute(self):
         self._dataFormat = 'ASCII'
         self.addAttribute('DataFormat', self._commandTree,
