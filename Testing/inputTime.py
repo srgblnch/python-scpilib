@@ -54,40 +54,32 @@ def scpiRequest(scpiObj, cmd):
 
 def commandTime(scpiObj, tn, cmd, tests=1, repeat=1):
     i = 0
-    # scpi_t = []
     telnet_t = []
     input_t = []
     callback_t = []
     start_t = datetime.now()
-    print("\n%d tests of command %s repeated %d times" % (tests, cmd, repeat))
+    print("\n%d tests of command %r repeated %d times" % (tests, cmd, repeat))
     while i < tests:
         _send = (cmd+";")*repeat
         telnet_t.append(telnetRequest(tn, _send, scpiObj).total_seconds())
-        # scpi_t.append(scpiRequest(scpiObj, _send).total_seconds())
         diff_t = scpiObj.inputExecTime - scpiObj.callbackExecTime
         input_t.append(diff_t.total_seconds())
         callback_t.append(scpiObj.callbackExecTime.total_seconds())
-        # scpiObj.callbackExecList
         print("\Test execution: %s (%d/%d)"
               % (['|', '/', '-', '\\'][i%4], i, tests), end='\r')
         sys.stdout.flush()
         i += 1
-    # scpi_t = array(scpi_t)
     telnet_t = array(telnet_t)
     input_t = array(input_t)
     callback_t = array(callback_t)
     print("After %4d executions of %r (repeated %4d times) (%s)"
           "\n\t%-14s (std %-14s, max %-14s) in telnet section"
-          # "\n\t%-14s (std %-14s, max %-14s) in scpi section"
           "\n\t%-14s (std %-14s, max %-14s) inside input pre&post"
           "\n\t%-14s (std %-14s, max %-14s) inside callback"
           % (tests, cmd, repeat, datetime.now()-start_t,
              timedelta(seconds=telnet_t.mean()),
              timedelta(seconds=telnet_t.std()),
              timedelta(seconds=telnet_t.max()),
-             # timedelta(seconds=scpi_t.mean()),
-             # timedelta(seconds=scpi_t.std()),
-             # timedelta(seconds=scpi_t.max()),
              timedelta(seconds=input_t.mean()),
              timedelta(seconds=input_t.std()),
              timedelta(seconds=input_t.max()),
@@ -95,7 +87,32 @@ def commandTime(scpiObj, tn, cmd, tests=1, repeat=1):
              timedelta(seconds=callback_t.std()),
              timedelta(seconds=callback_t.max()),
              ))
+    data = {'tests': tests,
+            'subcmds': repeat,
+            'cmd': cmd,
+            'telnet': telnet_t,
+            'input': input_t,
+            'cb': callback_t}
+    return data
     sleep(1)
+
+
+def csv_header():
+    fileName = "%s_inputTest.csv" % (datetime.now().strftime("%Y%m%d_%H%M%S"))
+    with file(fileName, 'w') as f:
+        f.write("#tests\t#subcmds\tcmd\ttelnet mean\ttelnet std\ttelnet max"
+                "\tinput mean\tinput std\tinput max\tcb mean\tcb std\tcb max\n"
+                )
+    return fileName
+
+def csv_register(fileName, data):
+    with file(fileName, 'a') as f:
+        f.write("%d\t%d\t%s\t" % (data['tests'], data['subcmds'], data['cmd']))
+        for measure in ['telnet', 'input', 'cb']:
+            t = data[measure]
+            f.write("%s\t%s\t%s\t" % (t.mean(), t.std(), t.max()))
+        f.write("\n")
+        f.flush()
 
 
 def main():
@@ -104,18 +121,19 @@ def main():
     tn = Telnet('::1', 5025)
     identity = InstrumentIdentification('ALBA', 'test', 0, _version())
     scpiObj.addSpecialCommand('IDN', identity.idn)
-#     for j in [10, 100]:
-#         for i in [1000]:
-#             commandTime(scpiObj, tn, '*IDN?', i, j)
     numericAttr = AttrTest()
-    for k in range(2,6):
-        cmd = ('%svalue:'%(chr(96+k))*k)[:-1]
-        scpiObj.addCommand(cmd, readcb=numericAttr.readTest)
-        for j in [10, 100]:
-            for i in [1000]:
-                commandTime(scpiObj, tn, cmd+'?', i, j)
+    fileName = csv_header()
+    for i in [1000]:  # number of test to extract statistical info
+        for j in [10, 100]:  # how long the cmd string will be
+            data = commandTime(scpiObj, tn, '*IDN?', i, j)
+            csv_register(fileName, data)
+            for k in range(1,6):  # how deep the tree of the command is
+                cmd = ('%svalue:'%(chr(96+k))*k)[:-1]
+                scpiObj.addCommand(cmd, readcb=numericAttr.readTest)
+                data = commandTime(scpiObj, tn, cmd+'?', i, j)
+                csv_register(fileName, data)
     tn.close()
-    sleep(1)
+    sleep(.1)
     scpiObj.close()
 
 
