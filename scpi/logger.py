@@ -45,6 +45,24 @@ _logger_DEBUG = _logging.DEBUG  # 10
 __all__ = ["Logger"]
 
 
+def timeit(method):
+
+    def timed(*args, **kw):
+        self = args[0]
+        if hasattr(self, '_debug') and callable(self._debug):
+            t_0 = _datetime.now()
+            result = method(*args, **kw)
+            t_diff = _datetime.now()-t_0
+            t_diff = t_diff.microseconds
+            self._debug('%r (%r, %r) %2.2f us' % (method.__name__, args, kw,
+                                                  t_diff))
+        else:
+            result = method(*args, **kw)
+        return result
+
+    return timed
+
+
 class Logger(object):
     '''This class is a very basic debugging flag mode used as a super class
        for the other classes in this library.

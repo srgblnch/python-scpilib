@@ -34,8 +34,10 @@ __license__ = "GPLv3+"
 
 try:
     from .logger import Logger as _Logger
+    from .logger import timeit as _timeit
 except:
     from logger import Logger as _Logger
+    from logger import timeit as _timeit
 try:
     from numpy import ndarray as _np_ndarray
     from numpy import float16 as _np_float16
@@ -109,28 +111,30 @@ class DictKey(_Logger, str):
         return "%s%s" % (self._name[0:self._minimum].upper(),
                          self._name[self._minimum:])
 
+    @_timeit
     def __eq__(self, other):  # => self == other
         '''
             Compare if those two names matches reducing the name until the
             minimum size.
         '''
-        if type(other) == DictKey:
+        if isinstance(other, DictKey):  # if type(other) == DictKey:
             otherName = other._name.lower()
-        elif type(other) == str:
+        elif isinstance(other, str):  # elif type(other) == str:
             otherName = other.lower()
         else:
             otherName = ''
         selfName = self._name.lower()
-        self._debug("Comparing %s to %s" % (selfName, otherName))
-        while len(selfName) >= len(otherName) and \
-                len(selfName) >= self._minimum:
-            if selfName == otherName:
-                self._debug("Found match! %s == %s" % (selfName, otherName))
-                return True
-            if len(selfName) > self._minimum:
-                self._debug("No match found, reducing %s to %s"
-                            % (selfName, selfName[:-1]))
-            selfName = selfName[:-1]
+        self._debug("Comparing %r to %r" % (selfName, otherName))
+        if selfName.startswith(otherName):
+            while len(selfName) >= len(otherName) and \
+                    len(selfName) >= self._minimum:
+                if selfName == otherName:
+                    self._debug("Found match! %s == %s" % (selfName, otherName))
+                    return True
+                if len(selfName) > self._minimum:
+                    self._debug("No match found, reducing %s to %s"
+                                % (selfName, selfName[:-1]))
+                selfName = selfName[:-1]
         return False
 
     def __ne__(self, other):  # => self != other
@@ -160,6 +164,7 @@ class Attribute(DictKey):
         self._allowedArgins = None
         self._debug("Build a Attribute object %s" % (self.name))
 
+    @_timeit
     def __str__(self):
         fullName = "%s" % (self._name)
         parent = self._parent
@@ -195,6 +200,7 @@ class Attribute(DictKey):
     def allowedArgins(self):
         return self._allowedArgins
 
+    @_timeit
     @allowedArgins.setter
     def allowedArgins(self, value):
         # TODO: also than an specific set of values, provide a way to restrict
@@ -209,6 +215,7 @@ class Attribute(DictKey):
         #       This is like 'FALSe' == 'FALS' in scpi
         #       replace 'str' by 'DictKey'
 
+    @_timeit
     def checkChannels(self):
         if self.parent is not None and self.parent.hasChannels:
             self._hasChannels = True
@@ -255,6 +262,7 @@ class Attribute(DictKey):
             return (self._checkArray(retValue), diff_t)
         return (None, None)
 
+    @_timeit
     def _checkArray(self, argin):
         # if answer is a list, manipulate it to follow the rule
         # '#NMMMMMMMMM...\n'
@@ -276,6 +284,7 @@ class Attribute(DictKey):
             return argout
         return argin
 
+    @_timeit
     def _convertArray(self, argin):
         root = self._getRootComponent()
         dataFormat = root['dataFormat'].read()
@@ -307,6 +316,7 @@ class Attribute(DictKey):
         header = "#%1s%s" % (firstField, lenght)
         return header + data
 
+    @_timeit
     def _getRootComponent(self):
         candidate = self._parent
         while candidate._parent is not None:
@@ -373,6 +383,7 @@ class Attribute(DictKey):
                             % (self.name, value, chlst, retValue))
         return (retValue, diff_t)
 
+    @_timeit
     def _checkAllChannelsAreWithinBoundaries(self, chlst):
         if len(self._channelTree) != len(chlst):
             raise AssertionError("Given channel list hasn't the same number "
@@ -417,6 +428,7 @@ class Component(_Logger, dict):
         self._channelTree = None
         self._debug("Build a Component object %s" % (self.name))
 
+    @_timeit
     def __str__(self):
         fullName = "%s" % (self._name)
         parent = self._parent
@@ -425,6 +437,7 @@ class Component(_Logger, dict):
             parent = parent._parent
         return fullName
 
+    #@_timeit
     def __repr__(self):
         indentation = "\t"*self.depth
         repr = ""
@@ -482,6 +495,7 @@ class Component(_Logger, dict):
     #         its tree of the above channels already discovered.
     #       Right now this is following the same path over and over again.
 
+    @_timeit
     def checkChannels(self):
         if self.parent is not None and self.parent.hasChannels:
             self._hasChannels = True
@@ -497,6 +511,7 @@ class Component(_Logger, dict):
             return self.parent._getChannels()
         return None
 
+    @_timeit
     def __getitem__(self, key):
         '''
             Given a keyword it checks if it matches, at least the first
