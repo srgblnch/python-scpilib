@@ -363,7 +363,7 @@ class scpi(_Logger):
 #             return ''
         start_t = _datetime.now()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
-            self._debug("from %r remove %r" % (line, line[-1]))
+            # self._debug("from %r remove %r" % (line, line[-1]))
             line = line[:-1]
         if len(line) == 0:
             return ''
@@ -402,11 +402,11 @@ class scpi(_Logger):
                     results.append(answer)
                 if cmd_t is not None:
                     times.append(cmd_t)
-        self._debug("Answers: %r" % (results))
+        # self._debug("Answers: %r" % (results))
         answer = ""
         for res in results:
             answer = "".join("%s%s;" % (answer, res))
-        self._debug("Answer: %r" % (answer))
+        # self._debug("Answer: %r" % (answer))
         cb_t = _timedelta(0)
         self._last_input_exec_cb_lst = times
         for i, t in enumerate(times):
@@ -484,9 +484,11 @@ class scpi(_Logger):
         keywords = cmd.split(':')
         tree = self._commandTree
         channelNum = []
+        keywords, separator, params = self._splitParams(cmd)
+        keywords = keywords.split(":")
         for key in keywords:
-            self._debug("processing %r" % key)
-            key, separator, params = self._splitParams(key)
+            # self._debug("processing %r" % key)
+            #key, separator, params = self._splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
                 # self._debug("key %s in tree %s" % (key, tree.keys()))
