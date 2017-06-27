@@ -49,6 +49,7 @@ from scpi import scpi
 from scpi.version import version as _version
 from scpi.logger import _logger_DEBUG
 import socket as _socket
+from telnetlib import Telnet
 from time import sleep as _sleep
 from time import time as _time
 from threading import currentThread as _currentThread
@@ -137,16 +138,17 @@ def testScpi(debug=False):
         results = []
         resultMsgs = []
         for test in [checkIDN,
-                     addInvalidCmds,
-                     addValidCommands,
-                     checkCommandQueries,
-                     checkCommandWrites,
-                     checkNonexistingCommands,
-                     checkArrayAnswers,
-                     checkMultipleCommands,
-                     checkReadWithParams,
-                     checkWriteWithoutParams,
-                     checkLocks]:
+                    addInvalidCmds,
+                    addValidCommands,
+                    checkCommandQueries,
+                    checkCommandWrites,
+                    checkNonexistingCommands,
+                    checkArrayAnswers,
+                    checkMultipleCommands,
+                    checkReadWithParams,
+                    checkWriteWithoutParams,
+                    checkLocks,
+                     checkTelnetHooks]:
             result, msg = test(scpiObj)
             results.append(result)
             tag, value = msg.rsplit(' ', 1)
@@ -645,6 +647,32 @@ def checkLocks(scpiObj):
     _printFooter(result[1])
     return result
 
+
+def checkTelnetHooks(scpiObj):
+    _printHeader("Telnet hooks")
+    try:
+        ipv4 = Telnet("127.0.0.1", 5025)
+        ipv6 = Telnet("::1", 5025)
+        cmd = "*IDN?"
+        def hook(who, what):
+            _printInfo("\t\thook call, received: (%r, %r)" % (who, what))
+        scpiObj.addConnectionHook(hook)
+        _printInfo("\tipv4 send %s" % (cmd))
+        ipv4.write(cmd)
+        _printInfo("\tipv4 answer %r" % ipv4.read_until('\n'))
+        _printInfo("\tipv6 send %s" % (cmd))
+        ipv6.write(cmd)
+        _printInfo("\tipv6 answer %r" % ipv6.read_until('\n'))
+        scpiObj.removeConnectionHook(hook)
+        ipv4.close()
+        ipv6.close()
+        result = True, "Telnet hooks test PASSED"
+    except Exception as e:
+        print("\tUnexpected kind of exception! %s" % e)
+        print_exc()
+        result = False, "Telnet hooks test FAILED"
+    _printFooter(result[1])
+    return result
 
 # second descendant level for tests ---
 
