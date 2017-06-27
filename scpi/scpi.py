@@ -165,7 +165,7 @@ class scpi(_Logger):
                 try:
                     service.addConnectionHook(hook)
                 except Exception as e:
-                    self._error("Exception setting a hook to %s: %e"
+                    self._error("Exception setting a hook to %s: %s"
                                 % (service, e))
             else:
                 self._warning("Service %s doesn't support hooks" % (service))

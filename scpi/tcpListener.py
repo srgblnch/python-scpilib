@@ -278,7 +278,7 @@ class TcpListener(_Logger):
                     % (connectionName, self.nActiveConnections))
 
     def addConnectionHook(self, hook):
-        if isCallable(hook):
+        if callable(hook):
             self._connectionHooks.append(hook)
         else:
             raise TypeError("The hook must be a callable object")
