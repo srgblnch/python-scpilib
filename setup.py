@@ -34,7 +34,7 @@ By now it only supports network connection, by default port 5025.
 __url__ = "https://github.com/srgblnch/scpi"
 # we use semantic versioning (http://semver.org/) and we update it using the
 # bumpversion script (https://github.com/peritus/bumpversion)
-__version__ = '0.3.5-alpha'
+__version__ = '0.3.6'
 
 
 from setuptools import setup, find_packages

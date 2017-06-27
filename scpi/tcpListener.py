@@ -46,6 +46,7 @@ class TcpListener(_Logger):
         super(TcpListener, self).__init__(debug=debug)
         self._name = name or "TcpListener"
         self._callback = callback
+        self._connectionHooks = []
         self._local = local
         self._port = port
         self._maxClients = maxClients
@@ -263,14 +264,33 @@ class TcpListener(_Logger):
                 return  # close the connection
             self._info("received from %s: %d bytes %r"
                        % (connectionName, len(data), data))
+            if len(self._connectionHooks) > 0:
+                for hook in self._connectionHooks:
+                    try:
+                        hook(connectionName, data)
+                    except Exception as e:
+                        self._warning("Exception calling %s hook: %s"
+                                      % (hook, e))
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
                 connection.close()
                 break
             if self._callback is not None:
                 ans = self._callback(data)
-                self._debug("skippy.input say %r" % (ans))
+                self._debug("scpi.input say %r" % (ans))
                 connection.send(ans)
         self._connectionThreads.pop(connectionName)
         self._debug("Ending connection: %s (having %s active left)"
                     % (connectionName, self.nActiveConnections))
+
+    def addConnectionHook(self, hook):
+        if callable(hook):
+            self._connectionHooks.append(hook)
+        else:
+            raise TypeError("The hook must be a callable object")
+
+    def removeConnectionHook(self, hook):
+        if self._connectionHooks.count(hook):
+            self._connectionHooks.pop(self._connectionHooks.index(hook))
+            return True
+        return False
