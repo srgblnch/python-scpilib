@@ -488,7 +488,6 @@ class scpi(_Logger):
         keywords = keywords.split(":")
         for key in keywords:
             # self._debug("processing %r" % key)
-            #key, separator, params = self._splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
                 # self._debug("key %s in tree %s" % (key, tree.keys()))
@@ -549,16 +548,10 @@ class scpi(_Logger):
                            % params if params else ""))
             if len(channelNum) > 0:
                 self._debug("do read with channel")
-                if params:
-                    answer, cmd_t = tree[key].read(chlst=channelNum,
+                answer, cmd_t = tree[key].read(chlst=channelNum,
                                             params=params)
-                else:
-                    answer, cmd_t = tree[key].read(chlst=channelNum)
             else:
-                if params:
-                    answer, cmd_t = tree[key].read(params=params)
-                else:
-                    answer, cmd_t = tree[key].read()
+                answer, cmd_t = tree[key].read(params=params)
             # With the support for list readings (its conversion
             # to '#NMMMMMMMMM...' stream:
             # TODO: This will require a DataFormat feature to
