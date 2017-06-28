@@ -24,8 +24,7 @@ __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
-__project__ = 'python-scpilib'
-__provides__ = 'scpilib'
+__project__ = 'scpilib'
 __description__ = "Python module to provide scpi functionality "\
                   "from instrument side"
 __longDesc__ = """
@@ -63,7 +62,6 @@ setup(name=__project__,
                    ],
       packages=find_packages(),
       url=__url__,
-      # provides=__provides__,
       )
 
 # for the classifiers review see:
