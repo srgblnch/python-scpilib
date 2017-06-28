@@ -24,7 +24,7 @@ __license__ = "GPLv3+"
 
 
 from random import randint
-from scpi.commands import _np, _float16, _float32, _float64, _float128
+from scpilib.commands import _np, _float16, _float32, _float64, _float128
 
 try:
     from numpy.random import random as _np_randomArray

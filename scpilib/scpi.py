@@ -17,12 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
-__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
-__license__ = "GPLv3+"
-
-__all__ = ["scpi"]
-
 
 try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
@@ -46,6 +40,13 @@ from datetime import timedelta as _timedelta
 from time import sleep as _sleep
 from threading import currentThread as _currentThread
 from traceback import print_exc
+
+
+__author__ = "Sergi Blanch-Torné"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
+__all__ = ["scpi"]
 
 
 # DEPRECATED: flags for service activation

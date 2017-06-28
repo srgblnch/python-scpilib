@@ -45,9 +45,9 @@ except:
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
-from scpi import scpi
-from scpi.version import version as _version
-from scpi.logger import _logger_DEBUG
+from scpilib import scpi
+from scpilib.version import version as _version
+from scpilib.logger import _logger_DEBUG
 import socket as _socket
 from telnetlib import Telnet
 from time import sleep as _sleep

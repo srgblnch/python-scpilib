@@ -17,11 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
-__email__ = "sblanch@cells.es"
-__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
-__license__ = "GPLv3+"
-
 from datetime import datetime as _datetime
 import logging as _logging
 from logging import handlers as _handlers
@@ -30,6 +25,13 @@ import os
 from threading import currentThread as _currentThread
 from threading import Lock as _Lock
 from weakref import ref as _weakref
+
+
+__author__ = "Sergi Blanch-Torné"
+__email__ = "sblanch@cells.es"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
 
 global lock
 lock = _Lock()
@@ -103,7 +105,7 @@ class Logger(object):
                                               backupCount=5)
             self._handler.setLevel(_logger_NOTSET)
             formatter = _logging.Formatter('%(asctime)s - %(levelname)s - '
-                                          '%(name)s - %(message)s')
+                                           '%(name)s - %(message)s')
             self._handler.setFormatter(formatter)
             self._devlogger.addHandler(self._handler)
         else:
@@ -229,7 +231,6 @@ class Logger(object):
                       _logger_INFO: self._devlogger.info,
                       _logger_DEBUG: self._devlogger.debug}
             method[level](msg)
-
 
     def _critical(self, msg):
         self.logMessage(msg, _logger_CRITICAL)

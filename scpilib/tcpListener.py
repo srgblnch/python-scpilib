@@ -17,12 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
-__email__ = "sblanch@cells.es"
-__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
-__license__ = "GPLv3+"
-
-
 try:
     from .logger import Logger as _Logger
 except:
@@ -32,6 +26,12 @@ import socket as _socket
 import threading as _threading
 from time import sleep as _sleep
 from traceback import print_exc as _print_exc
+
+__author__ = "Sergi Blanch-Torné"
+__email__ = "sblanch@cells.es"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
 
 _MAX_CLIENTS = 10
 
