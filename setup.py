@@ -34,7 +34,7 @@ By now it only supports network connection, by default port 5025.
 __url__ = "https://github.com/srgblnch/python-scpilib"
 # we use semantic versioning (http://semver.org/) and we update it using the
 # bumpversion script (https://github.com/peritus/bumpversion)
-__version__ = '0.4.0-alpha'
+__version__ = '0.4.1-alpha'
 
 
 from setuptools import setup, find_packages
@@ -51,7 +51,7 @@ classifiers = [
     'Topic :: Software Development :: Embedded Systems',
     'Topic :: Software Development :: Libraries :: Python Modules',
     'Topic :: System :: Hardware',
-    ''],
+    ],
 
 setup(name = __project__,
       license = __license__,
