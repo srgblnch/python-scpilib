@@ -17,9 +17,11 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+
+from scpi import scpi
+
+
 __author__ = "Sergi Blanch-Torné"
 __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
-
-from scpi import scpi

@@ -24,6 +24,7 @@ __license__ = "GPLv3+"
 
 __version__ = '0.4.0-alpha'
 
+
 def VERSION():
     if '-' in __version__:
         _v, _rel = __version__.split('-')
@@ -34,6 +35,6 @@ def VERSION():
         _v += [_rel]
     return tuple(_v)
 
+
 def version():
     return __version__
-

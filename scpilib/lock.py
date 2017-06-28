@@ -17,12 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
-__copyright__ = "Copyright 2016, CELLS / ALBA Synchrotron"
-__license__ = "GPLv3+"
-
-__all__ = ["Locker"]
-
 
 from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
@@ -31,6 +25,13 @@ try:
 except:
     from logger import Logger as _Logger
 from threading import currentThread as _currentThread
+
+
+__author__ = "Sergi Blanch-Torné"
+__copyright__ = "Copyright 2016, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
+__all__ = ["Locker"]
 
 
 DEFAULT_EXPIRATION_TIME = 60  # seconds

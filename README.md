@@ -1,4 +1,4 @@
-# scpi
+# python-scpilib
 Python module to provide scpi functionality to an instrument under a **GPLv3+** license.
 
 
@@ -7,7 +7,7 @@ Python module to provide scpi functionality to an instrument under a **GPLv3+** 
 ![about](https://img.shields.io/badge/Subject-Industrial_Control_Systems-orange.svg?style=social) ![about](https://img.shields.io/badge/Subject-Instrumentation-orange.svg?style=social)
 
 
-This project has started as a *toy-project* to test the [Skippy](https://github.com/srgblnch/skippy) Tango device server. But it has evolved to become a python library to provide *scpi commands tree* functionality in the **instrument side**.
+This project has started as a *toy-project* to test the [Skippy](https://github.com/srgblnch/skippy) Tango device server. But it has evolved to become a python library to provide *scpi commands tree* functionality in the **instrument side**. It has been found another project under the name [scpi](https://github.com/rambo/python-scpi) that works like the skippy but independent of any thing similar to Tango.
 
 SCPI library is based on these standards, but *does NOT (fully) complain them yet*.
  - [SCPI-99](http://www.ivifoundation.org/docs/scpi-99.pdf)
@@ -15,7 +15,7 @@ SCPI library is based on these standards, but *does NOT (fully) complain them ye
 
 ## Basic features
 
-- [x] Command three definition with readonly and read/write attributes.
+- [x] Command three definition with read-only and read/write attributes.
 - [x] Special commands (hint, they start by '*')
 - [x] Concatenation of commands (hint ';' separator).
 - [x] Listen network connections (only local/loopback or open to an interface).
@@ -52,20 +52,19 @@ to have a compiled option to increase performance with long sets of commands).
 
 ```
 $ python setup.py build
-$ python setup.py install --prefix $MYUSR
+$ sudo python setup.py install
 ```
 
-The install has been set with a prefix to highlight the current development 
-stage and avoid to use in production unless you change it.
+The install can be set with a prefix. One have to highlight the current development stage, we are using in one instrument in preproduction stage. One should use carefully before use in production.
 
 ## Usage
 
-Different aproaches has been prepared to have instrument side support. The 
+Different approaches has been prepared to have instrument side support. The 
 most simple shall be to simply build a scpi object in your instrument:
 
 ```python
-import scpi
-scpiObj = scpi.scpi()
+import scpilib
+scpiObj = scpilib.scpi()
 ```
 
 With no paramenter configuration, the object assumes the communication will be

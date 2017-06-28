@@ -17,12 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-__author__ = "Sergi Blanch-Torné"
-__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
-__license__ = "GPLv3+"
-
-__all__ = ["scpi"]
-
 
 try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
@@ -42,6 +36,13 @@ from time import sleep as _sleep
 from time import time as _time
 from threading import currentThread as _currentThread
 from traceback import print_exc
+
+
+__author__ = "Sergi Blanch-Torné"
+__copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
+__license__ = "GPLv3+"
+
+__all__ = ["scpi"]
 
 
 # DEPRECATED: flags for service activation
@@ -465,7 +466,8 @@ class scpi(_Logger):
                     # with intermediate keys of the command.
                     if self._isAccessAllowed() and \
                             self._isWriteAccessAllowed():
-                        self._doWriteOperation(cmd, tree, key, channelNum, params)
+                        self._doWriteOperation(cmd, tree, key, channelNum,
+                                               params)
                 else:
                     tree = nextNode
             except Exception as e:
