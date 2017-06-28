@@ -28,6 +28,7 @@ try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from .logger import Logger as _Logger
+    from .logger import timeit as _timeit
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
@@ -35,6 +36,7 @@ except:
     from commands import Component, Attribute, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from logger import Logger as _Logger
+    from logger import timeit as _timeit
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
@@ -402,11 +404,11 @@ class scpi(_Logger):
                     results.append(answer)
                 if cmd_t is not None:
                     times.append(cmd_t)
-        # self._debug("Answers: %r" % (results))
+        self._debug("Answers: %r" % (results))
         answer = ""
         for res in results:
             answer = "".join("%s%s;" % (answer, res))
-        # self._debug("Answer: %r" % (answer))
+        self._debug("Answer: %r" % (answer))
         cb_t = _timedelta(0)
         self._last_input_exec_cb_lst = times
         for i, t in enumerate(times):
@@ -436,6 +438,7 @@ class scpi(_Logger):
     def callbackExecList(self):
         return self._last_input_exec_cb_lst
 
+    #@_timeit
     def _process_special_command(self, cmd):
         start_t = _datetime.now()
         result = None
@@ -477,6 +480,7 @@ class scpi(_Logger):
                     % (cmd, (_datetime.now()-start_t), cmd_t))
         return (result, cmd_t)
 
+    #@_timeit
     def _process_normal_command(self, cmd):
         start_t = _datetime.now()
         answer = None
@@ -484,13 +488,14 @@ class scpi(_Logger):
         keywords = cmd.split(':')
         tree = self._commandTree
         channelNum = []
-        keywords, separator, params = self._splitParams(cmd)
-        keywords = keywords.split(":")
+        #keywords, separator, params = self._splitParams(cmd)
+        #keywords = keywords.split(":")
         for key in keywords:
-            # self._debug("processing %r" % key)
+            self._debug("processing %r" % key)
+            key, separator, params = self._splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
-                # self._debug("key %s in tree %s" % (key, tree.keys()))
+                self._debug("key %s in tree %s" % (key, tree.keys()))
                 nextNode = tree[key]
                 if separator == '?':
                     if self._isAccessAllowed():
@@ -504,15 +509,15 @@ class scpi(_Logger):
                     # with intermediate keys of the command.
                     if self._isAccessAllowed() and \
                             self._isWriteAccessAllowed():
-                        cmd_t = self._doWriteOperation(cmd, tree, key,
-                                                       channelNum, params)
-                        self._info(cmd_t)
+                        answer, cmd_t = self._doWriteOperation(cmd, tree, key,
+                                                               channelNum,
+                                                               params)
                 else:
                     tree = nextNode
             except Exception as e:
                 self._error("Not possible to understand key %r (from %r) "
-                            "separator %r, params %r" % (key, cmd, separator,
-                                                         params))
+                            "separator %r, params %r: %s"
+                            % (key, cmd, separator, params, e))
                 if separator == '?':
                     answer = float('NaN')
                 print_exc()
@@ -529,6 +534,7 @@ class scpi(_Logger):
                     self._debug("Found a %s with params: key=%s, params=%s"
                                 % (operation, key, params))
                     return key, separator, params
+                self._debug("Found a %s with ")
                 return key, separator, None
         return key, None, None
 

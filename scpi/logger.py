@@ -76,7 +76,7 @@ class Logger(object):
                  _logger_DEBUG:    'DEBUG'}
 
     def __init__(self, name="Logger", debug=False, loggerName=None,
-                 log2File=False, *args, **kwargs):
+                 log2File=True, *args, **kwargs):
         super(Logger, self).__init__(*args, **kwargs)
         # prepare vbles ---
         self._name = name
