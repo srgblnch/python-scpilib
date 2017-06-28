@@ -22,7 +22,7 @@ __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
-__project__ = 'scpi'
+__project__ = 'python-scpilib'
 __description__ = "Python module to provide scpi functionality "\
                   "from instrument side"
 __longDesc__ = """
@@ -31,10 +31,10 @@ to be accessed via the SCPI Protocol.
 
 By now it only supports network connection, by default port 5025.
 """
-__url__ = "https://github.com/srgblnch/scpi"
+__url__ = "https://github.com/srgblnch/python-scpilib"
 # we use semantic versioning (http://semver.org/) and we update it using the
 # bumpversion script (https://github.com/peritus/bumpversion)
-__version__ = '0.3.6'
+__version__ = '0.4.0-alpha'
 
 
 from setuptools import setup, find_packages

@@ -22,7 +22,8 @@ __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
-__version__ = '0.3.6'
+__version__ = '0.4.0-alpha'
+
 
 def VERSION():
     if '-' in __version__:
@@ -34,6 +35,6 @@ def VERSION():
         _v += [_rel]
     return tuple(_v)
 
+
 def version():
     return __version__
-

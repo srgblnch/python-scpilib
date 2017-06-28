@@ -21,7 +21,7 @@ __author__ = "Sergi Blanch-Torné"
 __copyright__ = "Copyright 2016, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
-from scpi.lock import Locker
+from scpilib.lock import Locker
 
 # --- testing area
 from optparse import OptionParser

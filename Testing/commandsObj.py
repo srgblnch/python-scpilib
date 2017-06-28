@@ -33,12 +33,12 @@ try:
     from ._printing import printHeader
 except:
     from _printing import printHeader
-from scpi.commands import BuildAttribute
-from scpi.commands import BuildChannel
-from scpi.commands import BuildComponent
-from scpi.commands import BuildSpecialCmd
-from scpi.commands import DictKey
-from scpi.version import version
+from scpilib.commands import BuildAttribute
+from scpilib.commands import BuildChannel
+from scpilib.commands import BuildComponent
+from scpilib.commands import BuildSpecialCmd
+from scpilib.commands import DictKey
+from scpilib.version import version
 
 
 def testDictKey(output=True):
