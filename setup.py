@@ -17,12 +17,15 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+from setuptools import setup, find_packages
+
 __author__ = "Sergi Blanch-Torne"
 __email__ = "sblanch@cells.es"
 __copyright__ = "Copyright 2015, CELLS / ALBA Synchrotron"
 __license__ = "GPLv3+"
 
 __project__ = 'python-scpilib'
+__provides__ = 'scpilib'
 __description__ = "Python module to provide scpi functionality "\
                   "from instrument side"
 __longDesc__ = """
@@ -37,39 +40,37 @@ __url__ = "https://github.com/srgblnch/python-scpilib"
 __version__ = '0.4.0'
 
 
-from setuptools import setup, find_packages
-
-classifiers = [
-    'Development Status :: 2 - Pre-Alpha',
-    'Intended Audience :: Developers',
-    'Intended Audience :: Science/Research',
-    'License :: OSI Approved :: '
-    'GNU General Public License v3 or later (GPLv3+)',
-    'Operating System :: POSIX',
-    'Programming Language :: Python',
-    'Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator',
-    'Topic :: Software Development :: Embedded Systems',
-    'Topic :: Software Development :: Libraries :: Python Modules',
-    'Topic :: System :: Hardware',
-    ''],
-
-setup(name = __project__,
-      license = __license__,
-      description = __description__,
-      long_description = __longDesc__,
-      version = __version__,
-      author = __author__,
-      author_email = __email__,
-      classifiers = classifiers,
+setup(name=__project__,
+      license=__license__,
+      description=__description__,
+      long_description=__longDesc__,
+      version=__version__,
+      author=__author__,
+      author_email=__email__,
+      classifiers=['Development Status :: 2 - Pre-Alpha',
+                   'Intended Audience :: Developers',
+                   'Intended Audience :: Science/Research',
+                   'License :: OSI Approved :: '
+                   'GNU General Public License v3 or later (GPLv3+)',
+                   'Operating System :: POSIX',
+                   'Programming Language :: Python',
+                   'Topic :: Scientific/Engineering :: '
+                   'Interface Engine/Protocol Translator',
+                   'Topic :: Software Development :: Embedded Systems',
+                   'Topic :: Software Development :: Libraries :: '
+                   'Python Modules',
+                   'Topic :: System :: Hardware',
+                   ],
       packages=find_packages(),
       url=__url__,
-)
+      # provides=__provides__,
+      )
 
-#for the classifiers review see:
-#https://pypi.python.org/pypi?%3Aaction=list_classifiers
+# for the classifiers review see:
+# https://pypi.python.org/pypi?%3Aaction=list_classifiers
 #
-#Development Status :: 1 - Planning
-#Development Status :: 2 - Pre-Alpha
-#Development Status :: 3 - Alpha
-#Development Status :: 4 - Beta
-#Development Status :: 5 - Production/Stable
+# Development Status :: 1 - Planning
+# Development Status :: 2 - Pre-Alpha
+# Development Status :: 3 - Alpha
+# Development Status :: 4 - Beta
+# Development Status :: 5 - Production/Stable
