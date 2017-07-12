@@ -30,8 +30,8 @@ except:
 from datetime import datetime
 from datetime import timedelta
 from numpy import array
-from scpi import scpi
-from scpi.version import version as _version
+from scpilib import scpi
+from scpilib.version import version as _version
 from scpiObj import InstrumentIdentification
 import sys
 from telnetlib import Telnet
