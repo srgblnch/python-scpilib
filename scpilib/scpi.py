@@ -287,7 +287,7 @@ class scpi(_Logger):
                             % (name))
         if name in parent.keys():
             self._debug("component '%s' already exist" % (name))
-            return
+            return parent[name]
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildComponent(name, parent)
 
@@ -297,7 +297,9 @@ class scpi(_Logger):
                             % (name))
         if name in parent.keys():
             self._debug("component '%s' already exist" % (name))
-            return
+            #TODO: Check that the already defined channel object has the same 
+            # number or channels. If not raise exception
+            return parent[name]
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildChannel(name, howMany, parent, startWith)
 
@@ -308,7 +310,9 @@ class scpi(_Logger):
                             % (name))
         if name in parent.keys():
             self._debug("attribute '%s' already exist" % (name))
-            return
+            #TODO: Check that the already defined attribute object has the same callbacks.
+            # If not, either add them, replace the already defined or raise an exception. 
+            return parent[name]
         self._debug("Adding attribute '%s' (%s)" % (name, parent))
         return BuildAttribute(name, parent, readcb, writecb, default,
                               allowedArgins)
