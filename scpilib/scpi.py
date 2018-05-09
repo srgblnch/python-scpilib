@@ -286,8 +286,8 @@ class scpi(_Logger):
             raise TypeError("For %s, parent doesn't accept components"
                             % (name))
         if name in parent.keys():
-            self._debug("component '%s' already exist" % (name))
-            return
+            self._warning("component '%s' already exist" % (name))
+            return parent[name]
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildComponent(name, parent)
 
@@ -296,8 +296,15 @@ class scpi(_Logger):
             raise TypeError("For %s, parent doesn't accept components"
                             % (name))
         if name in parent.keys():
-            self._debug("component '%s' already exist" % (name))
-            return
+            self._warning("component '%s' already exist" % (name))
+            _howMany = parent[name].howManyChannels
+            _startWith = parent[name].firstChannel
+            if _howMany != howMany or _startWith != startWith:
+                AssertionError("Component already exist but with different "
+                               "parameters")
+            # once here the user is adding exactly what it's trying to add
+            # this is more like a get
+            return parent[name]
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildChannel(name, howMany, parent, startWith)
 
@@ -307,8 +314,14 @@ class scpi(_Logger):
             raise TypeError("For %s, parent doesn't accept attributes"
                             % (name))
         if name in parent.keys():
-            self._debug("attribute '%s' already exist" % (name))
-            return
+            self._warning("attribute '%s' already exist" % (name))
+            _readcb = parent[name].read_cb
+            _writecb = parent[name].write_cb
+            if _readcb != readcb or _writecb != writecb or \
+                    parent.default != name:
+                AssertionError("Attribute already exist but with different "
+                               "parameters")
+            return parent[name]
         self._debug("Adding attribute '%s' (%s)" % (name, parent))
         return BuildAttribute(name, parent, readcb, writecb, default,
                               allowedArgins)
