@@ -207,7 +207,7 @@ class TcpListener(_Logger):
                     self._debug("Closing Listener")
                     del scpisocket
                     return
-                self._error("Socket Accept Exception: %s" % (e))
+                # self._error("Socket Accept Exception: %s" % (e))
                 _sleep(3)
             else:
                 self.__launchConnection(address, connection)
@@ -270,9 +270,10 @@ class TcpListener(_Logger):
                 connection.close()
                 break
             if self._callback is not None:
-                ans = self._callback(data)
-                self._debug("scpi.input say %r" % (ans))
-                connection.send(ans)
+                for line in data.split():
+                    ans = self._callback(line)
+                    self._debug("scpi.input say %r" % (ans))
+                    connection.send(ans)
         self._connectionThreads.pop(connectionName)
         self._debug("Ending connection: %s (having %s active left)"
                     % (connectionName, self.nActiveConnections))
