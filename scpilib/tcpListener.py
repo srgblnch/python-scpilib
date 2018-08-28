@@ -270,7 +270,7 @@ class TcpListener(_Logger):
                 connection.close()
                 break
             if self._callback is not None:
-                for line in data.split():
+                for line in self.split(data):
                     ans = self._callback(line)
                     self._debug("scpi.input say %r" % (ans))
                     connection.send(ans)
@@ -289,3 +289,32 @@ class TcpListener(_Logger):
             self._connectionHooks.pop(self._connectionHooks.index(hook))
             return True
         return False
+
+    def split(self, inpt):
+        """
+        Split the incomming string to separate, in case there are, piled up
+        requests. But not confuse with the multiple commands in one request.
+        Multiple commands separator is ';', this split is to separate when
+        there are '\r' or '\n' or their pairs.
+        We couldn't use str split() because it cuts also the spaces.
+        :param inpt:
+        :return: list:
+        """
+        self._debug("input {!r}".format(inpt))
+        outputs = []
+        i = 0
+        o = ""
+        while i < len(inpt):
+            self._debug("i:{}".format(i))
+            if inpt[i] not in ['\r', '\n']:
+                o += inpt[i]
+            else:
+                if len(o) > 0:
+                    outputs.append(o)
+                    o = ""
+            self._debug(
+                "\n\tpast: {!r}\n\tcurrent: {!r}\n\tnext{!r}\n"
+                "to: {!r}\n\toutputs: {!r}".format(
+                    inpt[:i], inpt[i], inpt[i+1:], o, outputs))
+            i += 1
+        return outputs
