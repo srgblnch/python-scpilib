@@ -290,31 +290,30 @@ class TcpListener(_Logger):
             return True
         return False
 
-    def split(self, inpt):
+    def split(self, incomming):
         """
         Split the incomming string to separate, in case there are, piled up
         requests. But not confuse with the multiple commands in one request.
         Multiple commands separator is ';', this split is to separate when
         there are '\r' or '\n' or their pairs.
         We couldn't use str split() because it cuts also the spaces.
-        :param inpt:
-        :return: list:
+
+        :param incomming: data to separate
+        :return: answer: list with the data separated
         """
-        self._debug("input {!r}".format(inpt))
-        outputs = []
+        answer = []
         i = 0
-        o = ""
-        while i < len(inpt):
-            self._debug("i:{}".format(i))
-            if inpt[i] not in ['\r', '\n']:
-                o += inpt[i]
+        line = ""
+        while i < len(incomming):
+            if incomming[i] not in ['\r', '\n']:
+                line += incomming[i]
             else:
-                if len(o) > 0:
-                    outputs.append(o)
-                    o = ""
-            self._debug(
-                "\n\tpast: {!r}\n\tcurrent: {!r}\n\tnext{!r}\n"
-                "to: {!r}\n\toutputs: {!r}".format(
-                    inpt[:i], inpt[i], inpt[i+1:], o, outputs))
+                # When one separator is found, append if where is a non-empty
+                # string to append. If there is already an empty string in the
+                # line, previous step already append and the loop is only
+                # waiting for the next line character.
+                if len(line) > 0:
+                    answer.append(line)
+                    line = ""
             i += 1
-        return outputs
+        return answer
