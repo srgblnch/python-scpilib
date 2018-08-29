@@ -86,6 +86,13 @@ scpiObj.addCommand('source:current:upper',
                    writecb=currentObj.upperLimit)
 ```
 
+**IMPORTANT:** _The callbach functions to the commands must return as soon 
+as possible. The developer of the instrument control must have on mind that
+any delay introduced by this call will be accumulated when one request
+contains multple queries._ It is recommended to write your own queue to process
+any request that takes time and return a
+[wilco](https://www.urbandictionary.com/define.php?term=Wilco).
+
 The *AttrTest()* object can be found in the *commands.py* file and it's used 
 in the test approach. What the previous code generates are:
 
