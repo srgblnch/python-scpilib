@@ -458,7 +458,7 @@ class scpi(_Logger):
 
     def _process_normal_command(self, cmd):
         start_t = _time()
-        answer = None
+        answer = 'ACK'
         keywords = cmd.split(':')
         tree = self._commandTree
         channelNum = []
