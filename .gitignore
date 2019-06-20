@@ -15,9 +15,13 @@ var/
 .installed.cfg
 *.egg
 *~
+.settings
 
 *.pyc
 
 # Eclipse
 .project
 .pydevproject
+
+# pycharm
+.idea
