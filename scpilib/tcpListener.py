@@ -36,6 +36,41 @@ __license__ = "GPLv3+"
 _MAX_CLIENTS = 10
 
 
+def splitter(data, sep='\r\n'):
+    """
+    Split the incomming string to separate, in case there are, piled up
+    requests. But not confuse with the multiple commands in one request.
+    Multiple commands separator is ';', this split is to separate when
+    there are '\r' or '\n' or their pairs.
+
+    The separator is trimmed from each request in the returned list.
+
+    If data does not end in either '\r' or '\n', the remaining buffer
+    is returned has unprocessed data.
+
+    Examples::
+
+    >>> splitter(b'foo 1\rbar 2\n')
+    [b'foo 1', b'bar 2'], b''
+
+    >>> splitter(b'foo 1\rbar 2\nnext...')
+    [b'foo 1', b'bar 2'], b'next...'
+
+    :param data: data to separate
+    :return: answer: tuple of <list of requests>, <remaining characters>
+    """
+    data = data.strip(' \t')
+    if not data:
+        return [], ''
+    for c in sep[1:]:
+        data = data.replace(c, sep[0])
+    result = (line.strip() for line in data.split(sep[0]))
+    result = [req for req in result if req]
+    has_remaining = data[-1] not in sep
+    remaining = result.pop(-1) if has_remaining else b''
+    return result, remaining
+
+
 class TcpListener(_Logger):
     """
         TODO: describe it
@@ -254,8 +289,9 @@ class TcpListener(_Logger):
     def __connection(self, address, connection):
         connectionName = '%s:%s' % (address[0], address[1])
         self._debug("Thread for %s connection" % (connectionName))
+        remaining = b''
         while not self._joinEvent.isSet():
-            data = connection.recv(1024)
+            data = connection.recv(4096)
             self._info("received from %s: %d bytes %r"
                        % (connectionName, len(data), data))
             if len(self._connectionHooks) > 0:
@@ -265,15 +301,19 @@ class TcpListener(_Logger):
                     except Exception as e:
                         self._warning("Exception calling %s hook: %s"
                                       % (hook, e))
+            data = remaining + data
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
                 connection.close()
                 break
             if self._callback is not None:
-                for line in self.split(data):
+                lines, remaining = splitter(data)
+                for line in lines:
                     ans = self._callback(line)
                     self._debug("scpi.input say %r" % (ans))
                     connection.send(ans)
+            else:
+                remaining = b''
         self._connectionThreads.pop(connectionName)
         self._debug("Ending connection: %s (having %s active left)"
                     % (connectionName, self.nActiveConnections))
@@ -289,31 +329,3 @@ class TcpListener(_Logger):
             self._connectionHooks.pop(self._connectionHooks.index(hook))
             return True
         return False
-
-    def split(self, incomming):
-        """
-        Split the incomming string to separate, in case there are, piled up
-        requests. But not confuse with the multiple commands in one request.
-        Multiple commands separator is ';', this split is to separate when
-        there are '\r' or '\n' or their pairs.
-        We couldn't use str split() because it cuts also the spaces.
-
-        :param incomming: data to separate
-        :return: answer: list with the data separated
-        """
-        answer = []
-        i = 0
-        line = ""
-        while i < len(incomming):
-            if incomming[i] not in ['\r', '\n']:
-                line += incomming[i]
-            else:
-                # When one separator is found, append if where is a non-empty
-                # string to append. If there is already an empty string in the
-                # line, previous step already append and the loop is only
-                # waiting for the next line character.
-                if len(line) > 0:
-                    answer.append(line)
-                    line = ""
-            i += 1
-        return answer
