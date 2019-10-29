@@ -32,6 +32,7 @@ except:
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
+import re
 from time import sleep as _sleep
 from time import time as _time
 from threading import currentThread as _currentThread
@@ -49,6 +50,8 @@ __all__ = ["scpi"]
 TCPLISTENER_LOCAL = 0b10000000
 TCPLISTENER_REMOTE = 0b01000000
 
+PARAM_RE = re.compile('(?P<cmd>[^\s?]+)(?P<query>\?)?(?P<args>.*)?$')
+
 
 def __version__():
     '''Library version with 4 fields: 'a.b.c-d'
@@ -57,6 +60,13 @@ def __version__():
        one is a revision number.
     '''
     return _version()
+
+
+def splitParams(data):
+    groups = PARAM_RE.match(data).groupdict()
+    args = groups['args'].strip()
+    query = '?' if groups['query'] == '?' else (' ' if args else None)
+    return groups['cmd'], query, args or None
 
 
 class scpi(_Logger):
@@ -464,7 +474,7 @@ class scpi(_Logger):
         channelNum = []
         for key in keywords:
             self._debug("processing %s" % key)
-            key, separator, params = self._splitParams(key)
+            key, separator, params = splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
                 nextNode = tree[key]
@@ -494,17 +504,6 @@ class scpi(_Logger):
         self._debug("command %s processed in %g ms (%r)"
                     % (cmd, (_time()-start_t)*1000, answer))
         return answer
-
-    def _splitParams(self, key):
-        for separator, operation in [['?', 'read'], [' ', 'write']]:
-            if key.count(separator):
-                key, params = key.split(separator)
-                if len(params) > 0:
-                    self._debug("Found a %s with params: key=%s, params=%s"
-                                % (operation, key, params))
-                    return key, separator, params
-                return key, separator, None
-        return key, None, None
 
     def _check4Channels(self, key, channelNum):
         if key[-CHNUMSIZE:].isdigit():
