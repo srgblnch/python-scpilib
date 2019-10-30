@@ -28,7 +28,7 @@ try:
     from ._objects import nChannels
     from ._objects import nSubchannels
     from ._objects import WattrTest, WchannelTest
-except:
+except ValueError:
     from _objects import AttrTest, ArrayTest
     from _objects import ChannelTest, SubchannelTest
     from _objects import nChannels
@@ -38,14 +38,14 @@ try:
     from ._printing import printHeader as _printHeader
     from ._printing import printFooter as _printFooter
     from ._printing import printInfo as _printInfo
-except:
+except ValueError:
     from _printing import printHeader as _printHeader
     from _printing import printFooter as _printFooter
     from _printing import printInfo as _printInfo
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
-from scpilib import scpi
+from scpilib import scpi, timeit_dct
 from scpilib.version import version as _version
 from scpilib.logger import _logger_DEBUG
 import socket as _socket
@@ -132,23 +132,25 @@ def testScpi(debug=False):
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug, writeLock=True) as scpiObj:
         if debug:
-            #scpiObj.logLevel(_logger_DEBUG)
+            scpiObj.logLevel(_logger_DEBUG)
             scpiObj.log2File(True)
             print("Log information: %s" % (scpiObj.loggingFile()))
         results = []
         resultMsgs = []
-        for test in [checkIDN,
-                    addInvalidCmds,
-                    addValidCommands,
-                    checkCommandQueries,
-                    checkCommandWrites,
-                    checkNonexistingCommands,
-                    checkArrayAnswers,
-                    checkMultipleCommands,
-                    checkReadWithParams,
-                    checkWriteWithoutParams,
-                    checkLocks,
-                     checkTelnetHooks]:
+        for test in [
+            checkIDN,
+            addInvalidCmds,
+            addValidCommands,
+            checkCommandQueries,
+            checkCommandWrites,
+            checkNonexistingCommands,
+            checkArrayAnswers,
+            checkMultipleCommands,
+            checkReadWithParams,
+            checkWriteWithoutParams,
+            # checkLocks,
+            # checkTelnetHooks,
+        ]:
             result, msg = test(scpiObj)
             results.append(result)
             tag, value = msg.rsplit(' ', 1)
@@ -447,7 +449,7 @@ def checkCommandWrites(scpiObj):
         # _doWriteCommand(scpiObj, selectionCmd, 'True')
         try:
             _doWriteCommand(scpiObj, selectionCmd, 0)
-        except:
+        except Exception:
             print("\tLimitation values succeed because it raises an exception "
                   "as expected")
         else:
@@ -654,6 +656,7 @@ def checkTelnetHooks(scpiObj):
         ipv4 = Telnet("127.0.0.1", 5025)
         ipv6 = Telnet("::1", 5025)
         cmd = "*IDN?"
+
         def hook(who, what):
             _printInfo("\t\thook call, received: (%r, %r)" % (who, what))
         scpiObj.addConnectionHook(hook)
@@ -1059,6 +1062,16 @@ def main():
             traceback.print_exc()
             print(border)
             return
+        finally:
+            for klass in timeit_dct:
+                print("Class {0}".format(klass))
+                for method in timeit_dct[klass]:
+                    print("\tmethod {0}.{1}".format(klass, method))
+                    arr = timeit_dct[klass][method]
+                    print("\t\tcalls {0} min {1:06.6f} mean {2:06.6f} "
+                          "std {3:06.6f} max {4:06.6f}"
+                          "".format(len(arr), arr.min(), arr.mean(),
+                                    arr.std(), arr.max()))
 
 
 if __name__ == '__main__':

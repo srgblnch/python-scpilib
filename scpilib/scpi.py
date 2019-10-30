@@ -22,6 +22,7 @@ try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from .logger import Logger as _Logger
+    from .logger import trace, timeit
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
@@ -376,6 +377,8 @@ class scpi(_Logger):
             return self._dataFormat
         self._dataFormat = value
 
+    @trace
+    @timeit
     def input(self, line):
         self._debug("Received %r input" % (line))
 #         if not self._isAccessAllowed():
@@ -426,6 +429,7 @@ class scpi(_Logger):
         # return answer + '\r\n'
         return ''
 
+    # @trace
     def _process_special_command(self, cmd):
         start_t = _time()
         result = None
@@ -466,6 +470,7 @@ class scpi(_Logger):
                     % (cmd, (_time()-start_t)*1000))
         return result
 
+    # @trace
     def _process_normal_command(self, cmd):
         start_t = _time()
         answer = 'ACK'
