@@ -19,6 +19,7 @@
 
 
 from scpi import scpi
+from logger import timeit_dct
 
 
 __author__ = "Sergi Blanch-Torné"

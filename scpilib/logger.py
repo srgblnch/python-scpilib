@@ -17,11 +17,21 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+
+
+from __future__ import print_function
+try:
+    import __builtin__
+except ImportError:
+    # Python 3
+    import builtins as __builtin__
 from datetime import datetime as _datetime
 import logging as _logging
 from logging import handlers as _handlers
 from multiprocessing import current_process as _currentProcess
+from numpy import array, append
 import os
+from time import time
 from threading import currentThread as _currentThread
 from threading import Lock as _Lock
 from weakref import ref as _weakref
@@ -45,6 +55,72 @@ _logger_DEBUG = _logging.DEBUG  # 10
 
 
 __all__ = ["Logger"]
+
+
+def debug_stream(msg):
+    __builtin__.print("{0:f} -- {1}".format(time(), msg))
+
+
+def _get_printer(obj):
+    if hasattr(obj, "debug_stream"):
+        return obj.debug_stream
+    return debug_stream
+
+
+def trace(method):
+    def _compact_args(lst_args, dct_args):
+        lst_str = "*args: {0}".format(lst_args) if len(lst_args) > 0 else ""
+        dct_str = "**kwargs: {0}".format(dct_args) if len(dct_args) > 0 else ""
+        if len(lst_str) > 0 and len(dct_args) > 0:
+            return "{0}, {1}".format(lst_str, dct_str)
+        elif len(lst_str) > 0:
+            return "{0}".format(lst_str)
+        elif len(dct_str) > 0:
+            return "{0}".format(dct_str)
+        return ""
+
+    def _compact_answer(answer):
+        if isinstance(answer, str) and len(answer) > 100:
+            return "{0}...{1}".format(answer[:25], answer[-25:])
+        return "{0}".format(answer)
+
+    def logging(*args, **kwargs):
+        self = args[0]
+        klass = self.__class__.__name__
+        method_name = method.__name__
+        args_str = _compact_args(args[1:], kwargs)
+        printer = _get_printer(self)
+        printer("> {0}.{1}({2})"
+                "".format(klass, method_name, args_str))
+        answer = method(*args, **kwargs)
+        answer_str = _compact_answer(answer)
+        printer("< {0}.{1}: {2}"
+                "".format(klass, method_name, answer_str))
+        return answer
+    return logging
+
+timeit_dct = {}
+
+def timeit(method):
+    def measure(*args, **kwargs):
+        self = args[0]
+        klass = self.__class__.__name__
+        if not klass in timeit_dct:
+            timeit_dct[klass] = {}
+        method_name = method.__name__
+        if not method_name in timeit_dct[klass]:
+            timeit_dct[klass][method_name] = array([])
+        t_0 = time()
+        answer = method(*args, **kwargs)
+        t_diff = time()-t_0
+        timeit_dct[klass][method_name] = append(
+            timeit_dct[klass][method_name], t_diff)
+        # printer = _get_printer(self)
+        # printer(": {0}.{1}: ({2:06.6f})".format(klass, method_name, t_diff))
+        return answer
+
+    return measure
+
 
 
 class Logger(object):
