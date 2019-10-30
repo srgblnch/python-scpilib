@@ -34,8 +34,10 @@ __license__ = "GPLv3+"
 
 try:
     from .logger import Logger as _Logger
+    from .logger import timeit
 except:
     from logger import Logger as _Logger
+    from logger import timeit
 try:
     from numpy import ndarray as _np_ndarray
     from numpy import float16 as _np_float16
@@ -108,6 +110,7 @@ class DictKey(_Logger, str):
         return "%s%s" % (self._name[0:self._minimum].upper(),
                          self._name[self._minimum:])
 
+    @timeit
     def __eq__(self, other):  # => self == other
         '''
             Compare if those two names matches reducing the name until the
@@ -475,6 +478,7 @@ class Component(_Logger, dict):
             return self.parent._getChannels()
         return None
 
+    @timeit
     def __getitem__(self, key):
         '''
             Given a keyword it checks if it matches, at least the first
