@@ -117,22 +117,19 @@ class DictKey(_Logger, str):
             minimum size.
         '''
         if type(other) == DictKey:
-            otherName = other._name.lower()
+            other_name = other.name.lower()
         elif type(other) == str:
-            otherName = other.lower()
+            other_name = other.lower()
         else:
-            otherName = ''
-        selfName = self._name.lower()
-        self._debug("Comparing %s to %s" % (selfName, otherName))
-        while len(selfName) >= len(otherName) and \
-                len(selfName) >= self._minimum:
-            if selfName == otherName:
-                self._debug("Found match! %s == %s" % (selfName, otherName))
+            return False
+        len_other_name = len(other_name)
+        self_name = self._name.lower()
+        len_self_name = len(self_name)
+        if len_other_name > len_self_name:
+            return False
+        else:
+            if other_name == self_name[:len_other_name]:
                 return True
-            if len(selfName) > self._minimum:
-                self._debug("No match found, reducing %s to %s"
-                            % (selfName, selfName[:-1]))
-            selfName = selfName[:-1]
         return False
 
     def __ne__(self, other):  # => self != other
