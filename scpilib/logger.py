@@ -376,9 +376,9 @@ class Logger(object):
 
     def _debug(self, msg, *args):
         try:
-            if len(args) > 0:
-                msg = msg.format(*args)
             if self.__debugFlag:
+                if len(args) > 0:
+                    msg = msg.format(*args)
                 self.logMessage(msg, _logger_DEBUG)
         except Exception as exc:
             self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
