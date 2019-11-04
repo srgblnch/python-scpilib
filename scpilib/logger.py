@@ -18,7 +18,6 @@
 # ##### END GPL LICENSE BLOCK #####
 
 
-
 from __future__ import print_function
 try:
     import __builtin__
@@ -45,6 +44,19 @@ __license__ = "GPLv3+"
 
 global lock
 lock = _Lock()
+_debug_ = False
+_log2file_ = True
+
+
+def scpi_debug(value):
+    global _debug_
+    _debug_ = value
+
+
+def scpi_log2file(value):
+    global _log2file_
+    _log2file_ = value
+
 
 _logger_NOTSET = _logging.NOTSET  # 0
 _logger_CRITICAL = _logging.CRITICAL  # 50
@@ -54,7 +66,7 @@ _logger_INFO = _logging.INFO  # 20
 _logger_DEBUG = _logging.DEBUG  # 10
 
 
-__all__ = ["Logger"]
+__all__ = ["Logger", "timeit_dct"]
 
 
 def debug_stream(msg):
@@ -85,42 +97,48 @@ def trace(method):
         return "{0}".format(answer)
 
     def logging(*args, **kwargs):
-        self = args[0]
-        klass = self.__class__.__name__
-        method_name = method.__name__
-        args_str = _compact_args(args[1:], kwargs)
-        printer = _get_printer(self)
-        printer("> {0}.{1}({2})"
-                "".format(klass, method_name, args_str))
+        if _debug_:
+            self = args[0]
+            klass = self.__class__.__name__
+            method_name = method.__name__
+            args_str = _compact_args(args[1:], kwargs)
+            printer = _get_printer(self)
+            printer("> {0}.{1}({2})"
+                    "".format(klass, method_name, args_str))
         answer = method(*args, **kwargs)
-        answer_str = _compact_answer(answer)
-        printer("< {0}.{1}: {2}"
-                "".format(klass, method_name, answer_str))
+        if _debug_:
+            answer_str = _compact_answer(answer)
+            printer("< {0}.{1}: {2}"
+                    "".format(klass, method_name, answer_str))
         return answer
     return logging
 
+
 timeit_dct = {}
+
 
 def timeit(method):
     def measure(*args, **kwargs):
-        self = args[0]
-        klass = self.__class__.__name__
-        if not klass in timeit_dct:
-            timeit_dct[klass] = {}
-        method_name = method.__name__
-        if not method_name in timeit_dct[klass]:
-            timeit_dct[klass][method_name] = array([])
-        t_0 = time()
+        if _debug_:
+            self = args[0]
+            klass = self.__class__.__name__
+            if klass not in timeit_dct:
+                timeit_dct[klass] = {}
+            method_name = method.__name__
+            if method_name not in timeit_dct[klass]:
+                timeit_dct[klass][method_name] = array([])
+            t_0 = time()
         answer = method(*args, **kwargs)
-        t_diff = time()-t_0
-        timeit_dct[klass][method_name] = append(
-            timeit_dct[klass][method_name], t_diff)
-        # printer = _get_printer(self)
-        # printer(": {0}.{1}: ({2:06.6f})".format(klass, method_name, t_diff))
+        if _debug_:
+            t_diff = time()-t_0
+            timeit_dct[klass][method_name] = append(
+                timeit_dct[klass][method_name], t_diff)
+            # printer = _get_printer(self)
+            # printer(": {0}.{1}: ({2:06.6f})"
+            #         "".format(klass, method_name, t_diff))
         return answer
 
     return measure
-
 
 
 class Logger(object):
@@ -128,6 +146,7 @@ class Logger(object):
        for the other classes in this library.
     '''
 
+    _name = None
     _levelStr = {_logger_NOTSET:   '',
                  _logger_CRITICAL: 'CRITICAL',
                  _logger_ERROR:    'ERROR',
@@ -135,14 +154,13 @@ class Logger(object):
                  _logger_INFO:     'INFO',
                  _logger_DEBUG:    'DEBUG'}
 
-    def __init__(self, name="Logger", debug=False, loggerName=None,
-                 log2File=False, *args, **kwargs):
+    def __init__(self, name="Logger", loggerName=None, log2file=False,
+                 debug=False, *args, **kwargs):
         super(Logger, self).__init__(*args, **kwargs)
-        # prepare vbles ---
         self._name = name
         self.__debugFlag = None
         self.__debuglevel = _logger_NOTSET
-        self.__log2file = log2File
+        self.__log2file = log2file
         self.__loggerName = loggerName or "SCPI"
         self.__logging_folder = None
         self.__logging_file = None
@@ -150,10 +168,12 @@ class Logger(object):
         self._handler = None
         # setup ---
         self.logEnable(True)
-        if debug:
+        if debug or _debug_:
             self.logLevel(_logger_DEBUG)
         else:
             self.logLevel(_logger_INFO)
+        if _log2file_:
+            self.log2File(True)
         self.loggingFile()
         if not len(self._devlogger.handlers):
             self._devlogger.setLevel(_logger_DEBUG)
@@ -162,7 +182,7 @@ class Logger(object):
                                               maxBytes=10000000,
                                               backupCount=5)
             self._handler.setLevel(_logger_NOTSET)
-            formatter = _logging.Formatter('%(asctime)s - %(levelname)s - '
+            formatter = _logging.Formatter('%(asctime)s - %(levelname)-7s - '
                                            '%(name)s - %(message)s')
             self._handler.setFormatter(formatter)
             self._devlogger.addHandler(self._handler)
@@ -227,7 +247,7 @@ class Logger(object):
             if not os.path.exists(folder):
                 os.makedirs(folder)
             return True
-        except:
+        except Exception:
             return False
 
     def loggingFile(self):
@@ -239,16 +259,17 @@ class Logger(object):
     def log2File(self, boolean):
         if type(boolean) is not bool:
             raise AssertionError("The parameter must be a boolean")
+        if self.__log2file != boolean:
+            self.logMessage("log2File() set to %s"
+                            % self.__log2file, _logger_DEBUG)
         self.__log2file = boolean
-        self.logMessage("log2File() set to %s"
-                        % (self.__log2file), _logger_INFO)
 
     def logEnable(self, dbg=False):
         if type(dbg) is not bool:
             raise AssertionError("The parameter must be a boolean")
         self.__debugFlag = dbg
         self.logMessage("logEnable()::Debug flag set to %s"
-                        % (self.__debugFlag), _logger_INFO)
+                        % self.__debugFlag, _logger_DEBUG)
 
     def logState(self):
         return self.__debugFlag
@@ -256,13 +277,13 @@ class Logger(object):
     def logLevel(self, level):
         try:
             self.__debuglevel = int(level)
-        except:
+        except Exception:
             raise AssertionError("The loglevel must be an integer")
         self._devlogger.setLevel(level)
         if self._handler is not None:
             self._handler.setLevel(level)
         self.logMessage("logEnable()::Debug level set to %s"
-                        % (self.__debuglevel), _logger_INFO)
+                        % (self.__debuglevel), _logger_DEBUG)
 #         if self._handler is not None:
 #             self._handler.setLevel(level)
 #         self.logMessage("logEnable()::Debug level set to %s"
@@ -281,14 +302,13 @@ class Logger(object):
 
     def logMessage(self, msg, level):
         _tag = self._levelStr[level]
-        prt_msg = "%s - %s - %s" % (_tag, self.__loggerName, msg)
         if self.__log2file:
             method = {_logger_CRITICAL: self._devlogger.critical,
                       _logger_ERROR: self._devlogger.error,
                       _logger_WARNING: self._devlogger.warn,
                       _logger_INFO: self._devlogger.info,
                       _logger_DEBUG: self._devlogger.debug}
-            method[level](msg)
+            method[level]("{0}: {1}".format(self.name, msg))
 
     def _critical(self, msg):
         self.logMessage(msg, _logger_CRITICAL)

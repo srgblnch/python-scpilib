@@ -126,15 +126,11 @@ def _afterTestWait():
     _wait(stepTime*10)
 
 
-def testScpi(debug=False):
+def testScpi(debug):
     start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug, writeLock=True) as scpiObj:
-        if debug:
-            scpiObj.logLevel(_logger_DEBUG)
-            scpiObj.log2File(True)
-            print("Log information: %s" % (scpiObj.loggingFile()))
         results = []
         resultMsgs = []
         for test in [
@@ -1044,6 +1040,18 @@ class LockThreadedTest(object):
                    bottom=bottom)
 
 
+def summary_timeit():
+    for klass in timeit_dct:
+        print("Class {0}".format(klass))
+        for method in timeit_dct[klass]:
+            print("\tmethod {0}.{1}".format(klass, method))
+            arr = timeit_dct[klass][method]
+            print("\t\t{0} calls: min {1:06.6f} max {2:06.6f} "
+                  "(mean {3:06.6f} stc {4:06.6f})"
+                  "".format(len(arr), arr.min(), arr.max(),
+                            arr.mean(), arr.std()))
+
+
 def main():
     import traceback
     from optparse import OptionParser
@@ -1063,15 +1071,7 @@ def main():
             print(border)
             return
         finally:
-            for klass in timeit_dct:
-                print("Class {0}".format(klass))
-                for method in timeit_dct[klass]:
-                    print("\tmethod {0}.{1}".format(klass, method))
-                    arr = timeit_dct[klass][method]
-                    print("\t\tcalls {0} min {1:06.6f} mean {2:06.6f} "
-                          "std {3:06.6f} max {4:06.6f}"
-                          "".format(len(arr), arr.min(), arr.mean(),
-                                    arr.std(), arr.max()))
+            summary_timeit()
 
 
 if __name__ == '__main__':

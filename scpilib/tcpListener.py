@@ -19,7 +19,7 @@
 
 try:
     from .logger import Logger as _Logger
-except:
+except ImportError:
     from logger import Logger as _Logger
 from gc import collect as _gccollect
 import socket as _socket
@@ -77,8 +77,8 @@ class TcpListener(_Logger):
     """
     # FIXME: default should be local=False
     def __init__(self, name=None, callback=None, local=True, port=5025,
-                 maxClients=_MAX_CLIENTS, ipv6=True, debug=False):
-        super(TcpListener, self).__init__(debug=debug)
+                 maxClients=_MAX_CLIENTS, ipv6=True, *args, **kwargs):
+        super(TcpListener, self).__init__(*args, **kwargs)
         self._name = name or "TcpListener"
         self._callback = callback
         self._connectionHooks = []

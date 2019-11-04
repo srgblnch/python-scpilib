@@ -22,14 +22,15 @@ try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from .logger import Logger as _Logger
-    from .logger import trace, timeit
+    from .logger import trace, timeit, scpi_debug
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
-except:
+except ImportError:
     from commands import Component, Attribute, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from logger import Logger as _Logger
+    from logger import trace, timeit, scpi_debug
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
@@ -85,7 +86,8 @@ class scpi(_Logger):
     '''
     def __init__(self, commandTree=None, specialCommands=None,
                  local=True, port=5025, autoOpen=False,
-                 services=None, writeLock=False, *args, **kwargs):
+                 services=None, writeLock=False, debug=False, *args, **kwargs):
+        scpi_debug(debug)
         super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
         self._commandTree = commandTree or Component()
@@ -167,8 +169,7 @@ class scpi(_Logger):
         self._services['tcpListener'] = TcpListener(name="TcpListener",
                                                     callback=self.input,
                                                     local=self._local,
-                                                    port=self._port,
-                                                    debug=self.logState())
+                                                    port=self._port)
         self._services['tcpListener'].listen()
 
     def addConnectionHook(self, hook):
@@ -222,7 +223,7 @@ class scpi(_Logger):
         #       :SYSTem:VERSion
 
     def __buildLockerComponent(self, commandTree):
-        self._lock = _Locker(name='readLock', debug=self.logState())
+        self._lock = _Locker(name='readLock')
         subTree = self.addComponent('LOCK', commandTree)
         self.addAttribute('owner', subTree, self._lock.Owner, default=True)
         self.addAttribute('release', subTree, readcb=self._lock.release,
@@ -232,7 +233,7 @@ class scpi(_Logger):
                           writecb=self._lock.request)
 
     def __buildWLockerComponent(self, commandTree):
-        self._wlock = _Locker(name='writeLock', debug=self.logState())
+        self._wlock = _Locker(name='writeLock')
         subTree = self.addComponent('WLOCK', commandTree)
         self.addAttribute('owner', subTree, self._wlock.Owner, default=True)
         self.addAttribute('release', subTree, readcb=self._wlock.release,
@@ -297,7 +298,7 @@ class scpi(_Logger):
             raise TypeError("For %s, parent doesn't accept components"
                             % (name))
         if name in parent.keys():
-            self._warning("component '%s' already exist" % (name))
+            # self._warning("component '%s' already exist" % (name))
             return parent[name]
         self._debug("Adding component '%s' (%s)" % (name, parent))
         return BuildComponent(name, parent)
@@ -307,7 +308,7 @@ class scpi(_Logger):
             raise TypeError("For %s, parent doesn't accept components"
                             % (name))
         if name in parent.keys():
-            self._warning("component '%s' already exist" % (name))
+            # self._warning("component '%s' already exist" % (name))
             _howMany = parent[name].howManyChannels
             _startWith = parent[name].firstChannel
             if _howMany != howMany or _startWith != startWith:
@@ -377,7 +378,6 @@ class scpi(_Logger):
             return self._dataFormat
         self._dataFormat = value
 
-    @trace
     @timeit
     def input(self, line):
         self._debug("Received %r input" % (line))
@@ -429,7 +429,6 @@ class scpi(_Logger):
         # return answer + '\r\n'
         return ''
 
-    # @trace
     def _process_special_command(self, cmd):
         start_t = _time()
         result = None

@@ -29,7 +29,7 @@ try:
     from ._printing import printHeader as _printHeader
     from ._printing import printFooter as _printFooter
     from ._printing import printInfo as _printInfo
-except:
+except ImportError:
     from _printing import printHeader as _printHeader
     from _printing import printFooter as _printFooter
     from _printing import printInfo as _printInfo
