@@ -22,7 +22,9 @@ try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from .logger import Logger as _Logger
-    from .logger import trace, timeit, scpi_debug
+    from .logger import trace, scpi_debug
+    from .logger import timeit, timeit_collection
+    from .logger import deprecated, deprecation_collection
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
@@ -30,7 +32,9 @@ except ImportError:
     from commands import Component, Attribute, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from logger import Logger as _Logger
-    from logger import trace, timeit, scpi_debug
+    from logger import trace, scpi_debug
+    from logger import timeit, timeit_collection
+    from logger import deprecated, deprecation_collection
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
@@ -94,8 +98,8 @@ class scpi(_Logger):
         self._commandTree.logEnable(self.logState())
         self._commandTree.logLevel(self.logGetLevel())
         self._specialCmds = specialCommands or {}
-        self._debug("Special commands: %r" % (specialCommands))
-        self._debug("Given commands: %r" % (self._commandTree))
+        self._debug("Special commands: {0!r}", specialCommands)
+        self._debug("Given commands: {0!r}", self._commandTree)
         self._local = local
         self._port = port
         self._services = {}
@@ -117,23 +121,50 @@ class scpi(_Logger):
         return self
 
     def __exit__(self, type, value, traceback):
-        self._debug("received a exit(%s,%s,%s) request"
-                    % (type, value, traceback))
+        self._debug("received a exit({0},{1},{2}) request",
+                    type, value, traceback)
         if self.isOpen:
             self.close()
+        self.__summary_timeit()
+        self.__summary_deprecated()
 
     def __del__(self):
         self._debug("Delete request received")
         if self.isOpen:
             self.close()
+        self.__summary_timeit()
+        self.__summary_deprecated()
+
+    def __summary_timeit(self):
+        msg = ""
+        for klass in timeit_collection:
+            for method in timeit_collection[klass]:
+                msg += "\nmethod {0}.{1}".format(klass, method)
+                arr = timeit_collection[klass][method]
+                msg += " {0} calls: min {1:06.6f} max {2:06.6f} " \
+                       "(mean {3:06.6f} stc {4:06.6f})" \
+                       "".format(len(arr), arr.min(), arr.max(),
+                                arr.mean(), arr.std())
+        if len(msg) > 0:
+            self._warning("timeit summary: {0}", msg)
+
+    def __summary_deprecated(self):
+        msg = ""
+        for klass in deprecation_collection:
+            for method in deprecation_collection[klass]:
+                msg += "\nmethod {0}.{1}".format(klass, method)
+                value = deprecation_collection[klass][method]
+                msg += " {0}".format(value)
+        if len(msg) > 0:
+            self._warning("deprecations summary: {0}", msg)
 
     def __str__(self):
-        return "%s" % (self.name)
+        return str(self.name)
 
     def __repr__(self):
         if 'idn' in self._specialCmds:
-            return "%s(%s)" % (self.name, self._specialCmds['idn'].read())
-        return "%s()" % self.name
+            return "{0}({1})".format(self.name, self._specialCmds['idn'].read())
+        return "{0}()".format(self.name)
 
     # # communications ares ---
 
@@ -156,7 +187,7 @@ class scpi(_Logger):
         if self.isOpen:
             self._debug("Close services")
             for key in self._services.keys():
-                self._debug("Close service %s" % key)
+                self._debug("Close service {0}", key)
                 self._services[key].close()
                 self._services.pop(key)
             self._debug("Communications finished. Exiting...")
@@ -164,8 +195,8 @@ class scpi(_Logger):
             self._warning("Already Close")
 
     def __buildTcpListener(self):
-        self._debug("Opening tcp listener (%s)"
-                    % ("local" if self._local else "remote"))
+        self._debug("Opening tcp listener ({0})",
+                    "local" if self._local else "remote")
         self._services['tcpListener'] = TcpListener(name="TcpListener",
                                                     callback=self.input,
                                                     local=self._local,
@@ -178,19 +209,19 @@ class scpi(_Logger):
                 try:
                     service.addConnectionHook(hook)
                 except Exception as e:
-                    self._error("Exception setting a hook to %s: %s"
-                                % (service, e))
+                    self._error("Exception setting a hook to {0}: {1}",
+                                service, e)
             else:
-                self._warning("Service %s doesn't support hooks" % (service))
+                self._warning("Service {0} doesn't support hooks", service)
 
     def removeConnectionHook(self, hook):
         for service in self._services.itervalues():
             if hasattr(service, 'removeConnectionHook'):
                 if not service.removeConnectionHook(hook):
-                    self._warning("Service %s refuse to remove the hook"
-                                  % (service))
+                    self._warning("Service {0} refuse to remove the hook",
+                                  service)
             else:
-                self._warning("Service %s doesn't support hooks" % (service))
+                self._warning("Service {0} doesn't support hooks", service)
 
     def __buildDataFormatAttribute(self):
         self._dataFormat = 'ASCII'
@@ -244,13 +275,13 @@ class scpi(_Logger):
 
     @property
     def remoteAllowed(self):
-        return not self._services['tcpListener']._local
+        return not self._services['tcpListener'].local
 
     @remoteAllowed.setter
     def remoteAllowed(self, value):
         if type(value) is not bool:
             raise AssertionError("Only boolean can be assigned")
-        if value != (not self._services['tcpListener']._local):
+        if value != (not self._services['tcpListener'].local):
             tcpListener = self._services.pop('tcpListener')
             tcpListener.close()
             self._debug("Close the active listeners and their connections.")
@@ -279,14 +310,14 @@ class scpi(_Logger):
             name = name[1:]
         if name.endswith('?'):
             if writecb is not None:
-                raise KeyError("Refusing command %s: looks readonly but has "
-                               "a query character at the end." % (name))
+                raise KeyError("Refusing command {0}: looks readonly but has "
+                               "a query character at the end.".format(name))
             name = name[:-1]
         if not name.isalpha():
             raise NameError("Not supported other than alphabetical characters")
         if self._specialCmds is None:
             self._specialCmds = {}
-        self._debug("Adding special command '*%s'" % (name))
+        self._debug("Adding special command '*{0}'".format(name))
         BuildSpecialCmd(name, self._specialCmds, readcb, writecb)
 
     @property
@@ -295,18 +326,18 @@ class scpi(_Logger):
 
     def addComponent(self, name, parent):
         if not hasattr(parent, 'keys'):
-            raise TypeError("For %s, parent doesn't accept components"
-                            % (name))
+            raise TypeError("For {0}, parent doesn't accept components"
+                            "".format(name))
         if name in parent.keys():
             # self._warning("component '%s' already exist" % (name))
             return parent[name]
-        self._debug("Adding component '%s' (%s)" % (name, parent))
+        self._debug("Adding component '{0}' ({1})", name, parent)
         return BuildComponent(name, parent)
 
     def addChannel(self, name, howMany, parent, startWith=1):
         if not hasattr(parent, 'keys'):
-            raise TypeError("For %s, parent doesn't accept components"
-                            % (name))
+            raise TypeError("For {0}, parent doesn't accept components"
+                            "".format(name))
         if name in parent.keys():
             # self._warning("component '%s' already exist" % (name))
             _howMany = parent[name].howManyChannels
@@ -317,16 +348,16 @@ class scpi(_Logger):
             # once here the user is adding exactly what it's trying to add
             # this is more like a get
             return parent[name]
-        self._debug("Adding component '%s' (%s)" % (name, parent))
+        self._debug("Adding component '{0}' ({1})", name, parent)
         return BuildChannel(name, howMany, parent, startWith)
 
     def addAttribute(self, name, parent, readcb, writecb=None, default=False,
                      allowedArgins=None):
         if not hasattr(parent, 'keys'):
-            raise TypeError("For %s, parent doesn't accept attributes"
-                            % (name))
+            raise TypeError("For {0}, parent doesn't accept attributes"
+                            "".format(name))
         if name in parent.keys():
-            self._warning("attribute '%s' already exist" % (name))
+            self._warning("attribute '{0}' already exist", name)
             _readcb = parent[name].read_cb
             _writecb = parent[name].write_cb
             if _readcb != readcb or _writecb != writecb or \
@@ -334,7 +365,7 @@ class scpi(_Logger):
                 AssertionError("Attribute already exist but with different "
                                "parameters")
             return parent[name]
-        self._debug("Adding attribute '%s' (%s)" % (name, parent))
+        self._debug("Adding attribute '{0}' ({1})", name, parent)
         return BuildAttribute(name, parent, readcb, writecb, default,
                               allowedArgins)
 
@@ -351,13 +382,14 @@ class scpi(_Logger):
             self.addSpecialCommand(FullName, readcb, writecb)
             return
         nameParts = FullName.split(':')
-        self._debug("Prepare to add command %s" % (FullName))
+        self._debug("Prepare to add command {0}", FullName)
         tree = self._commandTree
         # preprocessing:
         for i, part in enumerate(nameParts):
             if len(part) == 0:
                 raise NameError("No null names allowed "
-                                "(review element %d of %s)" % (i, FullName))
+                                "(review element {0:d} of {1})"
+                                "".format(i, FullName))
         if len(nameParts) > 1:
             for i, part in enumerate(nameParts[:-1]):
                 self.addComponent(part, tree)
@@ -380,12 +412,12 @@ class scpi(_Logger):
 
     @timeit
     def input(self, line):
-        self._debug("Received %r input" % (line))
+        self._debug("Received {0!r} input", line)
 #         if not self._isAccessAllowed():
 #             return ''
         start_t = _time()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
-            self._debug("from %r remove %r" % (line, line[-1]))
+            self._debug("from {0!r} remove {1!r}", line, line[-1])
             line = line[:-1]
         if len(line) == 0:
             return ''
@@ -393,23 +425,23 @@ class scpi(_Logger):
         results = []
         for i, command in enumerate(line):
             command = command.strip()  # avoid '\n' terminator if exist
-            self._debug("Processing %dth command: %r" % (i+1, command))
+            self._debug("Processing {0:d}th command: {1!r}", i+1, command)
             if command.startswith('*'):
                 answer = self._process_special_command(command[1:])
                 if answer is not None:
                     results.append(answer)
             elif command.startswith(':'):
                 if i == 0:
-                    self._error("For command %r: Not possible to start "
-                                "with ':', without previous command"
-                                % (command))
+                    self._error("For command {0!r}: Not possible to start "
+                                "with ':', without previous command",
+                                command)
                     results.append(float('NaN'))
                 else:
                     # populate fields pre-':'
                     # with the previous (i-1) command
-                    command = "".join("%s%s" % (line[i-1].rsplit(':', 1)[0],
-                                                command))
-                    self._debug("Command expanded to %r" % (command))
+                    command = "".join(
+                        "{0}{1}".format(line[i-1].rsplit(':', 1)[0], command))
+                    self._debug("Command expanded to {0!r}", command)
                     answer = self._process_normal_command(command)
                     if answer is not None:
                         results.append(answer)
@@ -417,12 +449,12 @@ class scpi(_Logger):
                 answer = self._process_normal_command(command)
                 if answer is not None:
                     results.append(answer)
-        self._debug("Answers: %r" % (results))
+        self._debug("Answers: {0!r}", results)
         answer = ""
         for res in results:
-            answer = "".join("%s%s;" % (answer, res))
-        self._debug("Answer: %r" % (answer))
-        self._debug("Query reply send after %g ms" % ((_time()-start_t)*1000))
+            answer = "".join("{0}{1};".format(answer, res))
+        self._debug("Answer: {0}", answer)
+        self._debug("Query reply send after {0:g} ms", (_time()-start_t)*1000)
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
@@ -433,15 +465,15 @@ class scpi(_Logger):
         start_t = _time()
         result = None
         # FIXME: ugly
-        self._debug("current special keys: %s" % (self._specialCmds.keys()))
+        self._debug("current special keys: {0}", self._specialCmds.keys())
         if cmd.count(':') > 0:  # Not expected in special commands
             return float('NaN')
         for key in self._specialCmds.keys():
-            self._debug("testing key %s ?= %s" % (key, cmd))
+            self._debug("testing key {0} ?= {1}", key, cmd)
             if cmd.lower().startswith(key.lower()):
                 if cmd.endswith('?'):
                     if self._isAccessAllowed():
-                        self._debug("Requesting read of %s" % (key))
+                        self._debug("Requesting read of {0}", key)
                         result = self._specialCmds[key].read()
                         break
                     else:
@@ -452,21 +484,21 @@ class scpi(_Logger):
                             self._isWriteAccessAllowed():
                         bar = cmd.split(' ')
                         name, value = bar
-                        self._debug("Requesting write of %s with value %s"
-                                    % (name, value))
+                        self._debug("Requesting write of {0} with value {1}",
+                                    name, value)
                         # TODO: By default don't provide a readback,
                         #       but there will be an SCPI command to return
                         #       an answer to the write commands
                         self._specialCmds[name].write(value)
                     break
-                self._debug("Requesting write of %s without value" % (key))
+                self._debug("Requesting write of {0} without value", key)
                 # TODO: By default don't provide a readback,
                 #       but there will be an SCPI command to return
                 #       an answer to the write commands
                 self._specialCmds[key].write()
                 break
-        self._debug("special command %s processed in %g ms"
-                    % (cmd, (_time()-start_t)*1000))
+        self._debug("special command {0} processed in {1:g} ms",
+                    cmd, (_time()-start_t)*1000)
         return result
 
     # @trace
@@ -477,7 +509,7 @@ class scpi(_Logger):
         tree = self._commandTree
         channelNum = []
         for key in keywords:
-            self._debug("processing %s" % key)
+            self._debug("processing {0}", key)
             key, separator, params = splitParams(key)
             key = self._check4Channels(key, channelNum)
             try:
@@ -498,30 +530,29 @@ class scpi(_Logger):
                 else:
                     tree = nextNode
             except Exception as e:
-                self._error("Not possible to understand key %r (from %r) "
-                            "separator %r, params %r" % (key, cmd, separator,
-                                                         params))
+                self._error("Not possible to understand key {0!r} "
+                            "(from {1!r}) separator {2!r}, params {3!r}",
+                            key, cmd, separator, params)
                 if separator == '?':
                     answer = float('NaN')
                 print_exc()
                 break
-        self._debug("command %s processed in %g ms (%r)"
-                    % (cmd, (_time()-start_t)*1000, answer))
+        self._debug("command {0} processed in {1:g} ms ({2!r}",
+                    cmd, (_time()-start_t)*1000, answer)
         return answer
 
     def _check4Channels(self, key, channelNum):
         if key[-CHNUMSIZE:].isdigit():
             channelNum.append(int(key[-CHNUMSIZE:]))
             self._debug("It has been found that this has channels defined "
-                        "for keyword %s" % (key))
+                        "for keyword {0}", key)
             key = key[:-CHNUMSIZE]
         return key
 
     def _doReadOperation(self, cmd, tree, key, channelNum, params):
         try:
-            self._debug("Leaf of the tree %r%s"
-                        % (key, " (with params=%s)"
-                           % params if params else ""))
+            self._debug("Leaf of the tree {0!r}{1}", key,
+                        " (with params={0})".format(params if params else ""))
             if len(channelNum) > 0:
                 self._debug("do read with channel")
                 if params:
@@ -541,7 +572,7 @@ class scpi(_Logger):
             if answer is None:
                 answer = float('NaN')
         except Exception as e:
-            self._warning("Exception reading '%s': %s" % (cmd, e))
+            self._warning("Exception reading '{0}': {1}", cmd, e)
             answer = float('NaN')
             print_exc()
         return answer
@@ -550,20 +581,20 @@ class scpi(_Logger):
         # TODO: By default don't provide a readback, but there will be an SCPI
         #       command to return an answer to the write commands
         try:
-            self._debug("Leaf of the tree %r (%r)" % (key, params))
+            self._debug("Leaf of the tree {0!r} ({1!r})", key, params)
             if len(channelNum) > 0:
-                self._debug("do write (with channel %s) %s: %s"
-                            % (channelNum, key, params))
+                self._debug("do write (with channel {0}) {1}: {2}",
+                            channelNum, key, params)
                 answer = tree[key].write(chlst=channelNum, value=params)
 #                 if answer is None:
 #                     answer = tree[key].read(channelNum)
             else:
-                self._debug("do write %s: %s" % (key, params))
+                self._debug("do write {0}: {1}", key, params)
                 answer = tree[key].write(value=params)
 #                 if answer is None:
 #                     answer = tree[key].read()
         except Exception as e:
-            self._warning("Exception writing '%s': %s" % (cmd, e))
+            self._warning("Exception writing '{0}': {1}", cmd, e)
             answer = None  # float('NaN')
             print_exc()
         return answer

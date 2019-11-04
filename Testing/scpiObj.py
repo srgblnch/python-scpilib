@@ -45,7 +45,7 @@ except ValueError:
 from random import choice as _randomchoice
 from random import randint as _randint
 from sys import stdout as _stdout
-from scpilib import scpi, timeit_dct
+from scpilib import scpi
 from scpilib.version import version as _version
 from scpilib.logger import _logger_DEBUG
 import socket as _socket
@@ -1040,18 +1040,6 @@ class LockThreadedTest(object):
                    bottom=bottom)
 
 
-def summary_timeit():
-    for klass in timeit_dct:
-        print("Class {0}".format(klass))
-        for method in timeit_dct[klass]:
-            print("\tmethod {0}.{1}".format(klass, method))
-            arr = timeit_dct[klass][method]
-            print("\t\t{0} calls: min {1:06.6f} max {2:06.6f} "
-                  "(mean {3:06.6f} stc {4:06.6f})"
-                  "".format(len(arr), arr.min(), arr.max(),
-                            arr.mean(), arr.std()))
-
-
 def main():
     import traceback
     from optparse import OptionParser
@@ -1070,8 +1058,6 @@ def main():
             traceback.print_exc()
             print(border)
             return
-        finally:
-            summary_timeit()
 
 
 if __name__ == '__main__':

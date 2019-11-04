@@ -99,8 +99,8 @@ class TcpListener(_Logger):
         return self
 
     def __exit__(self, type, value, traceback):
-        self._debug("received a exit(%s,%s,%s) request"
-                    % (type, value, traceback))
+        self._debug("received a exit({0},{1},{2}) request",
+                    type, value, traceback)
         self.__del__()
 
     def __del__(self):
@@ -110,13 +110,13 @@ class TcpListener(_Logger):
         self.buildIpv4Socket()
         try:
             self.buildIpv6Socket()
-        except Exception as e:
-            self._error("IPv6 will not be available due to: %s" % (e))
+        except Exception as exc:
+            self._error("IPv6 will not be available due to: {0}", exc)
 
     def close(self):
         if self._joinEvent.isSet():
             return
-        self._debug("%s close received" % (self._name))
+        self._debug("{0} close received", self._name)
         if hasattr(self, '_joinEvent'):
             self._debug("Deleting TcpListener")
             self._joinEvent.set()
@@ -137,6 +137,10 @@ class TcpListener(_Logger):
     @property
     def port(self):
         return self._port
+
+    @property
+    def local(self):
+        return self._local
 
     def listen(self):
         self._debug("Launching listener thread")
@@ -202,14 +206,14 @@ class TcpListener(_Logger):
             self.__prepareListener(scpisocket, scpihost, 5)
             self.__doListen(scpisocket)
             self._debug("Listener thread finishing")
-        except SystemExit as e:
-            self._debug("Received a SystemExit (%s)" % (e))
+        except SystemExit as exc:
+            self._debug("Received a SystemExit ({0})", exc)
             self.__del__()
-        except KeyboardInterrupt as e:
-            self._debug("Received a KeyboardInterrupt (%s)" % (e))
+        except KeyboardInterrupt as exc:
+            self._debug("Received a KeyboardInterrupt ({0})", exc)
             self.__del__()
-        except GeneratorExit as e:
-            self._debug("Received a GeneratorExit (%s)" % (e))
+        except GeneratorExit as exc:
+            self._debug("Received a GeneratorExit ({0})", exc)
             self.__del__()
 
     def __prepareListener(self, scpisocket, scpihost, maxretries):
@@ -220,16 +224,16 @@ class TcpListener(_Logger):
             try:
                 scpisocket.bind((scpihost, self._port))
                 scpisocket.listen(self._maxClients)
-                self._debug("Listener thread up and running (port %d, with "
-                            "a maximum of %d connections in parallel)."
-                            % (self._port, self._maxClients))
+                self._debug("Listener thread up and running (port {0:d}, with "
+                            "a maximum of {1:d} connections in parallel).",
+                            self._port, self._maxClients)
                 return True
-            except Exception as e:
+            except Exception as exc:
                 tries += 1
-                self._error("Couldn't bind the socket. %s\nException: %s"
-                            % ("(Retry in %d seconds)" % (seconds)
-                               if tries < maxretries else "(No more retries)",
-                               e))
+                self._error("Couldn't bind the socket. {0}\nException: {1}",
+                            "(Retry in {0:d} seconds)".format(seconds)
+                            if tries < maxretries else "(No more retries)",
+                            exc)
                 _sleep(seconds)
         return False
 
@@ -263,44 +267,45 @@ class TcpListener(_Logger):
         return len(self._connectionThreads)
 
     def __launchConnection(self, address, connection):
-        connectionName = '%s:%s' % (address[0], address[1])
+        connectionName = "{0}:{1}".format(address[0], address[1])
         try:
-            self._debug('Connection request from %s (having %d already active)'
-                        % (connectionName, self.nActiveConnections))
+            self._debug("Connection request from {0} "
+                        "(having {1:d} already active)",
+                        connectionName, self.nActiveConnections)
             if connectionName in self._connectionThreads and \
                     self._connectionThreads[connectionName].isAlive():
-                self.error("New connection from %s when it has already "
-                           "one. refusing the newer." % (connectionName))
+                self.error("New connection from {0} when it has already "
+                           "one. refusing the newer.", connectionName)
             elif self.nActiveConnections >= self._maxClients:
                 self._error("Reached the maximum number of allowed "
-                            "connections (%d)" % (self.nActiveConnections))
+                            "connections ({0:d})", self.nActiveConnections)
             else:
                 self._connectionThreads[connectionName] = \
                     _threading.Thread(name=connectionName,
                                       target=self.__connection,
                                       args=(address, connection))
-                self._debug("Connection for %s created" % (connectionName))
+                self._debug("Connection for {0} created", connectionName)
                 self._connectionThreads[connectionName].setDaemon(True)
                 self._connectionThreads[connectionName].start()
-        except Exception as e:
-            self._error("Cannot launch connection request from %s due to: %s"
-                        % (connectionName, e))
+        except Exception as exc:
+            self._error("Cannot launch connection request from {0} due to: "
+                        "{1}", connectionName, exc)
 
     def __connection(self, address, connection):
-        connectionName = '%s:%s' % (address[0], address[1])
-        self._debug("Thread for %s connection" % (connectionName))
+        connectionName = "{0}:{1}".format(address[0], address[1])
+        self._debug("Thread for {0} connection", connectionName)
         remaining = b''
         while not self._joinEvent.isSet():
             data = connection.recv(4096)
-            self._info("received from %s: %d bytes %r"
-                       % (connectionName, len(data), data))
+            self._info("received from {0}: {1:d} bytes {2!r}",
+                       connectionName, len(data), data)
             if len(self._connectionHooks) > 0:
                 for hook in self._connectionHooks:
                     try:
                         hook(connectionName, data)
-                    except Exception as e:
-                        self._warning("Exception calling %s hook: %s"
-                                      % (hook, e))
+                    except Exception as exc:
+                        self._warning("Exception calling {0} hook: {1}",
+                                      hook, exc)
             data = remaining + data
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
@@ -310,13 +315,13 @@ class TcpListener(_Logger):
                 lines, remaining = splitter(data)
                 for line in lines:
                     ans = self._callback(line)
-                    self._debug("scpi.input say %r" % (ans))
+                    self._debug("scpi.input say {0!r}", ans)
                     connection.send(ans)
             else:
                 remaining = b''
         self._connectionThreads.pop(connectionName)
-        self._debug("Ending connection: %s (having %s active left)"
-                    % (connectionName, self.nActiveConnections))
+        self._debug("Ending connection: {0} (having {1} active left)",
+                    connectionName, self.nActiveConnections)
 
     def addConnectionHook(self, hook):
         if callable(hook):

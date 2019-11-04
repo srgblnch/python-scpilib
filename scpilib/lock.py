@@ -54,12 +54,12 @@ class Locker(_Logger):
         self._expiration = _timedelta(0, DEFAULT_EXPIRATION_TIME, 0)
 
     def __str__(self):
-        return "%s(%s)"\
-            % (self.name, "" if self._owner is None else self._owner)
+        return "{0}({1})".format(self.name,
+                                 "" if self._owner is None else self._owner)
 
     def __repr__(self):
-        return "%s(owner=%s, when=%s, expiration=%s)"\
-            % (self.name, self._owner, self._when, self._expiration)
+        return "{0}(owner={1}, when={2}, expiration={3})" \
+               "".format(self.name, self._owner, self._when, self._expiration)
 
     @property
     def owner(self):
@@ -80,8 +80,8 @@ class Locker(_Logger):
             self._doLock(timeout)
             return True
         else:
-            self._warning("%s request the lock when already is"
-                          % (_currentThread().name))
+            self._warning("{0} request the lock when already is",
+                          _currentThread().name)
             return False
 
     def release(self):
@@ -90,12 +90,12 @@ class Locker(_Logger):
         """
         # self._debug("%s release()" % _currentThread().name)
         if self._isOwner():
-            self._debug("%s releases the lock" % self._owner)
+            self._debug("{0} releases the lock", self._owner)
             self._doRelease()
             return True
         else:
-            self._error("%s is NOT allowed to release %s's lock"
-                        % (_currentThread().name, self._owner))
+            self._error("{0} is NOT allowed to release {1}'s lock",
+                        _currentThread().name, self._owner)
             return False
 
     def access(self):
@@ -104,13 +104,13 @@ class Locker(_Logger):
         """
         # self._debug("%s access()" % _currentThread().name)
         if not self.isLock():
-            self._debug("There is no owner of the lock, %s can pass"
-                        % _currentThread().name)
+            self._debug("There is no owner of the lock, {0} can pass",
+                        _currentThread().name)
             return True
         elif self._isOwner():
             self._when = _datetime.now()
-            self._debug("The owner is who is asking (%s), "
-                        "renew its booking" % (_currentThread().name))
+            self._debug("The owner is who is asking ({0}), "
+                        "renew its booking", _currentThread().name)
             return True
         else:
             return False
@@ -150,7 +150,7 @@ class Locker(_Logger):
     def _hasOwner(self):
         hasOwner = self._owner is not None
 #         if hasOwner:
-#             self._debug("Lock has owner (%s)" % self._owner)
+#             self._debug("Lock has owner ({0})", self._owner)
 #         else:
 #             self._debug("Lock is free")
         return hasOwner
@@ -158,9 +158,9 @@ class Locker(_Logger):
     def _isOwner(self):
         isOwner = self._owner == _currentThread().name
 #         if isOwner:
-#             self._debug("%s is the owner" % (_currentThread().name))
+#             self._debug("{0} is the owner", _currentThread().name)
 #         else:
-#             self._debug("%s is NOT the owner" % (_currentThread().name))
+#             self._debug("{1} is NOT the owner", _currentThread().name)
         return isOwner
 
     def _doLock(self, timeout=None):
@@ -169,8 +169,8 @@ class Locker(_Logger):
         self._owner = _currentThread().name
         self._when = _datetime.now()
         self.expirationTime = timeout
-        self._info("%s has take the lock (expiration time %s)"
-                   % (self.owner, self.expirationTime))
+        self._info("{0} has take the lock (expiration time {1})",
+                   self.owner, self.expirationTime)
 
     def _doRelease(self):
         self._owner = None
@@ -199,9 +199,9 @@ class Locker(_Logger):
             return True
         delta = _datetime.now() - self._when
         if delta > self._expiration:
-            self._info("No news from the lock owner (%s) after %s: release "
-                       "the lock." % (self._owner, delta))
+            self._info("No news from the lock owner ({0}) after {1}: release "
+                       "the lock.", self._owner, delta)
             self._doRelease()
             return True
-        self._debug("lock NOT expired, still %s for %s" % (delta, self._owner))
+        self._debug("lock NOT expired, still {0} for {1}", delta, self._owner)
         return False

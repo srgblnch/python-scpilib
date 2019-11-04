@@ -66,7 +66,14 @@ _logger_INFO = _logging.INFO  # 20
 _logger_DEBUG = _logging.DEBUG  # 10
 
 
-__all__ = ["Logger", "timeit_dct"]
+__all__ = ["scpi_debug", "scpi_log2file",
+           "trace", "timeit", "deprecated",
+           "timeit_collection", "deprecation_collection",
+           "Logger"]
+
+
+timeit_collection = {}
+deprecation_collection = {}
 
 
 def debug_stream(msg):
@@ -114,31 +121,43 @@ def trace(method):
     return logging
 
 
-timeit_dct = {}
-
-
 def timeit(method):
     def measure(*args, **kwargs):
         if _debug_:
             self = args[0]
             klass = self.__class__.__name__
-            if klass not in timeit_dct:
-                timeit_dct[klass] = {}
+            if klass not in timeit_collection:
+                timeit_collection[klass] = {}
             method_name = method.__name__
-            if method_name not in timeit_dct[klass]:
-                timeit_dct[klass][method_name] = array([])
+            if method_name not in timeit_collection[klass]:
+                timeit_collection[klass][method_name] = array([])
             t_0 = time()
         answer = method(*args, **kwargs)
         if _debug_:
             t_diff = time()-t_0
-            timeit_dct[klass][method_name] = append(
-                timeit_dct[klass][method_name], t_diff)
-            # printer = _get_printer(self)
-            # printer(": {0}.{1}: ({2:06.6f})"
-            #         "".format(klass, method_name, t_diff))
+            timeit_collection[klass][method_name] = append(
+                timeit_collection[klass][method_name], t_diff)
         return answer
 
     return measure
+
+
+def deprecated(method):
+    def collect(*args, **kwargs):
+        if _debug_:
+            self = args[0]
+            klass = self.__class__.__name__
+            if klass not in deprecation_collection:
+                deprecation_collection[klass] = {}
+            method_name = method.__name__
+            if method_name not in deprecation_collection[klass]:
+                deprecation_collection[klass][method_name] = 0
+        answer = method(*args, **kwargs)
+        if _debug_:
+            deprecation_collection[klass][method_name] += 1
+        return answer
+
+    return collect
 
 
 class Logger(object):
@@ -231,9 +250,9 @@ class Logger(object):
 
     def loggingFolder(self):
         if self.__logging_folder is None:
-            logging_folder = "/var/log/%s" % (self.__loggerName)
+            logging_folder = "/var/log/{0}".format(self.__loggerName)
             if not self.__buildLoggingFolder(logging_folder):
-                logging_folder = "/tmp/log/%s" % (self.__loggerName)
+                logging_folder = "/tmp/log/{0}".format(self.__loggerName)
                 if not self.__buildLoggingFolder(logging_folder):
                     raise SystemError("No folder for logging available")
             self.__logging_folder = logging_folder
@@ -252,8 +271,8 @@ class Logger(object):
 
     def loggingFile(self):
         if self.__logging_file is None:
-            self.__logging_file = \
-                "%s/%s.log" % (self.loggingFolder(), self.__loggerName)
+            self.__logging_file = "{0}/{1}.log".format(
+                self.loggingFolder(), self.__loggerName)
         return self.__logging_file
 
     def log2File(self, boolean):
@@ -268,8 +287,9 @@ class Logger(object):
         if type(dbg) is not bool:
             raise AssertionError("The parameter must be a boolean")
         self.__debugFlag = dbg
-        self.logMessage("logEnable()::Debug flag set to %s"
-                        % self.__debugFlag, _logger_DEBUG)
+        if self.__debugFlag:
+            self.logMessage("logEnable()::Debug flag set to {0}"
+                            "".format(self.__debugFlag), _logger_DEBUG)
 
     def logState(self):
         return self.__debugFlag
@@ -282,8 +302,9 @@ class Logger(object):
         self._devlogger.setLevel(level)
         if self._handler is not None:
             self._handler.setLevel(level)
-        self.logMessage("logEnable()::Debug level set to %s"
-                        % (self.__debuglevel), _logger_DEBUG)
+        if self.__debugFlag:
+            self.logMessage("logEnable()::Debug level set to {0}"
+                            "".format(self.__debuglevel), _logger_DEBUG)
 #         if self._handler is not None:
 #             self._handler.setLevel(level)
 #         self.logMessage("logEnable()::Debug level set to %s"
@@ -310,18 +331,48 @@ class Logger(object):
                       _logger_DEBUG: self._devlogger.debug}
             method[level]("{0}: {1}".format(self.name, msg))
 
-    def _critical(self, msg):
-        self.logMessage(msg, _logger_CRITICAL)
+    def _critical(self, msg, *args):
+        try:
+            if len(args) > 0:
+                msg = msg.format(*args)
+            self.logMessage(msg, _logger_CRITICAL)
+        except Exception as exc:
+            self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
+                            _logger_CRITICAL)
 
-    def _error(self, msg):
-        self.logMessage(msg, _logger_ERROR)
+    def _error(self, msg, *args):
+        try:
+            if len(args) > 0:
+                msg = msg.format(*args)
+            self.logMessage(msg, _logger_ERROR)
+        except Exception as exc:
+            self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
+                            _logger_CRITICAL)
 
-    def _warning(self, msg):
-        self.logMessage(msg, _logger_WARNING)
+    def _warning(self, msg, *args):
+        try:
+            if len(args) > 0:
+                msg = msg.format(*args)
+            self.logMessage(msg, _logger_WARNING)
+        except Exception as exc:
+            self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
+                            _logger_CRITICAL)
 
-    def _info(self, msg):
-        self.logMessage(msg, _logger_INFO)
+    def _info(self, msg, *args):
+        try:
+            if len(args) > 0:
+                msg = msg.format(*args)
+            self.logMessage(msg, _logger_INFO)
+        except Exception as exc:
+            self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
+                            _logger_CRITICAL)
 
-    def _debug(self, msg):
-        if self.__debugFlag:
-            self.logMessage(msg, _logger_DEBUG)
+    def _debug(self, msg, *args):
+        try:
+            if len(args) > 0:
+                msg = msg.format(*args)
+            if self.__debugFlag:
+                self.logMessage(msg, _logger_DEBUG)
+        except Exception as exc:
+            self.logMessage("Cannot log {0!r} because {1}".format(msg, exc),
+                            _logger_CRITICAL)

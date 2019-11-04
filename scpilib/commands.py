@@ -87,7 +87,7 @@ class DictKey(_Logger, str):
     _minimum = MINIMUMKEYLENGHT
 
     def __init__(self, value, *args, **kargs):
-        value = "%s" % value
+        value = str(value)
         super(DictKey, self).__init__(*args, **kargs)
         if not value.isalpha():
             raise NameError("key shall be strictly alphabetic")
@@ -95,8 +95,7 @@ class DictKey(_Logger, str):
         if 0 < len(self._name) < MINIMUMKEYLENGHT:
             self.minimum = len(value)
         if len(self._name) < self._minimum:
-            raise NameError("value string shall be almost "
-                            "the minimum size")
+            raise NameError("value string shall be almost the minimum size")
         lower = self._name.lower()
         self.__id = getId(self._name.lower(), self._minimum)
         # this identifier uses only the minimum substring and depends on the
@@ -154,26 +153,28 @@ class Attribute(DictKey):
 
         Example: COMPonent:COMPonent:ATTRibute
     '''
+
+    _parent = None
+    _read_cb = None
+    _write_cb = None
+    _hasChannels = False
+    _channelTree = None
+    _allowedArgins = None
+
     def __init__(self, *args, **kargs):
         super(Attribute, self).__init__(*args, **kargs)
-        self._parent = None
-        self._read_cb = None
-        self._write_cb = None
-        self._hasChannels = False
-        self._channelTree = None
-        self._allowedArgins = None
-        self._debug("Build a Attribute object %s" % (self.name))
+        self._debug("Build a Attribute object {0}", self.name)
 
     def __str__(self):
-        fullName = "%s" % (self._name)
+        full_name = str(self._name)
         parent = self._parent
-        while parent is not None and parent._name is not None:
-            fullName = "".join("%s:%s" % (parent._name, fullName))
-            parent = parent._parent
-        return fullName
+        while parent is not None and parent.name is not None:
+            full_name = "".join("{0}:{1}".format(parent.name, full_name))
+            parent = parent.parent
+        return full_name
 
     def __repr__(self):
-        indentation = "\t"*self.depth
+        # indentation = "\t"*self.depth
         return ""  # .join("\n%s%s"%(indentation,DictKey.__repr__(self)))
 
     @property
@@ -216,16 +217,16 @@ class Attribute(DictKey):
     def checkChannels(self):
         if self.parent is not None and self.parent.hasChannels:
             self._hasChannels = True
-            self._channelTree = self._getChannels()
-            self._debug("%s: Channels found for %s component: %s"
-                        % (self.name, self.parent.name,
-                           ["%s" % x.name for x in self._channelTree]))
+            self._channelTree = self.getChannels()
+            self._debug("{0}: Channels found for {1} component: {2}",
+                        self.name, self.parent.name,
+                        ["%s" % x.name for x in self._channelTree])
         else:
-            self._debug("%s: No channels found" % (self.name))
+            self._debug("{0}: No channels found", self.name)
 
-    def _getChannels(self):
+    def getChannels(self):
         if self.parent is not None and self.parent.hasChannels:
-            return self.parent._getChannels()
+            return self.parent.getChannels()
         return None
 
     @property
@@ -249,57 +250,57 @@ class Attribute(DictKey):
                     retValue = self._read_cb(params)
                 else:
                     retValue = self._read_cb()
-                self._debug("Attribute %s read: %s" % (self.name, retValue))
-            return self._checkArray(retValue)
+                self._debug("Attribute {0} read: {1}", self.name, retValue)
+            return self._check_array(retValue)
 
-    def _checkArray(self, argin):
+    def _check_array(self, argin):
         # if answer is a list, manipulate it to follow the rule
         # '#NMMMMMMMMM...\n'
-        isList = (type(argin) == list)
-        isNpArray = None
-        isSpArray = None
+        is_list = (type(argin) == list)
+        is_np_array = None
+        is_sp_array = None
         if _np:
-            if isList:
+            if is_list:
                 argin = _np_ndarray(argin)
-                isList = False
-            isNpArray = (type(argin) == _np_ndarray)
+                is_list = False
+            is_np_array = (type(argin) == _np_ndarray)
         if _sp:
-            isSpArray = (type(argin) == _sp_ndarray)
-            if isList:
+            is_sp_array = (type(argin) == _sp_ndarray)
+            if is_list:
                 argin = _sp_ndarray(argin)
-                isList = False
-        if isNpArray or isSpArray:
-            argout = self._convertArray(argin)
+                is_list = False
+        if is_np_array or is_sp_array:
+            argout = self._convert_array(argin)
             return argout
         return argin
 
-    def _convertArray(self, argin):
+    def _convert_array(self, argin):
         root = self._getRootComponent()
-        dataFormat = root['dataFormat'].read()
+        data_format = root['dataFormat'].read()
         # flat the array, dimensions shall be known by the receiver
         flattened = argin.flatten()
         # codification
-        if dataFormat == 'ASCII':
+        if data_format == 'ASCII':
             data = "".join("%s," % element for element in flattened)[:-1]
-        elif dataFormat == 'QUADRUPLE':
+        elif data_format == 'QUADRUPLE':
             data = flattened.astype(_float128).tostring()  # + '\n'
-        elif dataFormat == 'DOUBLE':
+        elif data_format == 'DOUBLE':
             data = flattened.astype(_float64).tostring()  # + '\n'
-        elif dataFormat == 'SINGLE':
+        elif data_format == 'SINGLE':
             data = flattened.astype(_float32).tostring()  # + '\n'
-        elif dataFormat == 'HALF':
+        elif data_format == 'HALF':
             data = flattened.astype(_float16).tostring()  # + '\n'
         # TODO: mini-precision (byte)
         # elif dataFormat == 'mini':
         #     pass
         else:
-            raise NotImplementedError("Unexpected data format %s codification"
-                                      % (dataFormat))
+            raise NotImplementedError("Unexpected data format {0} codification"
+                                      "".format(dataFormat))
         # prepare the header
         lenght = str(len(data))
         firstField = str(len(lenght))
         if len(firstField) > 1:
-            self._error("A %s array cannot be codified" % (lenght))
+            self._error("A {0} array cannot be codified", lenght)
             return float("NaN")
         header = "#%1s%s" % (firstField, lenght)
         return header + data
@@ -319,18 +320,18 @@ class Attribute(DictKey):
         self._write_cb = function
 
     def write(self, chlst=None, value=None):
-        self._debug("%s.write(ch=%s, value=%s)" % (self.name, chlst, value))
+        self._debug("{0}.write(ch={1}, value={2})", self.name, chlst, value)
         if self._write_cb is not None:
             if self.allowedArgins is not None and \
                     value not in self.allowedArgins:
-                raise ValueError("Not allowed to write %s, only %s "
-                                 "are accepted" % (value, self.allowedArgins))
+                raise ValueError("Not allowed to write {0}, only {1} are "
+                                 "accepted".format(value, self.allowedArgins))
             if self.hasChannels and chlst is not None:
                 retValue = self._callbackChannels(self._write_cb, chlst, value)
             else:
                 retValue = self._write_cb(value)
-                self._debug("Attribute %s write %s: %s"
-                            % (self.name, value, retValue))
+                self._debug("Attribute {0} write {1}: {2}",
+                            self.name, value, retValue)
             return retValue
 
     def _callbackChannels(self, method_cb, chlst, value=None):
@@ -339,21 +340,21 @@ class Attribute(DictKey):
             ch = chlst[0]
             if value is None:
                 retValue = method_cb(ch)
-                self._debug("Attribute %s read from channel %d: %s"
-                            % (self.name, ch, retValue))
+                self._debug("Attribute {0} read from channel {1:d}: {2}",
+                            self.name, ch, retValue)
             else:
                 retValue = method_cb(ch, value)
-                self._debug("Attribute %s write %s in channel %d: %s"
-                            % (self.name, value, ch, retValue))
+                self._debug("Attribute {0} write {1} in channel {2:d}: {3}",
+                            self.name, value, ch, retValue)
         else:
             if value is None:
                 retValue = method_cb(chlst)
-                self._debug("Attribute %s read for channel set %s: %s"
-                            % (self.name, chlst, retValue))
+                self._debug("Attribute {0} read for channel set {1}: {2}",
+                            self.name, chlst, retValue)
             else:
                 retValue = method_cb(chlst, value)
-                self._debug("Attribute %s write %s for channel set %s: %s"
-                            % (self.name, value, chlst, retValue))
+                self._debug("Attribute {0} write {1} for channel set {2}: {3}",
+                            self.name, value, chlst, retValue)
         return retValue
 
     def _checkAllChannelsAreWithinBoundaries(self, chlst):
@@ -392,25 +393,25 @@ class Component(_Logger, dict):
         Ex: COMPonent:COMPonent:ATTRibute
     '''
 
+    _parent = None
+    _defaultKey = None
+    _howMany = None
+    _hasChannels = False
+    _channelTree = None
     _idxs = None
 
     def __init__(self, *args, **kargs):
         super(Component, self).__init__(*args, **kargs)
-        self._parent = None
-        self._defaultKey = None
-        self._howMany = None
-        self._hasChannels = False
-        self._channelTree = None
-        self._debug("Build a Component object %s" % (self.name))
+        self._debug("Build a Component object {0}", self.name)
         self._idxs = {}
 
     def __str__(self):
-        fullName = "%s" % (self._name)
+        full_name = str(self._name)
         parent = self._parent
-        while parent is not None and parent._name is not None:
-            fullName = "".join("%s:%s" % (parent._name, fullName))
-            parent = parent._parent
-        return fullName
+        while parent is not None and parent.name is not None:
+            full_name = "".join("{0}:{1}".format(parent.name, full_name))
+            parent = parent.parent
+        return full_name
 
     def __repr__(self):
         indentation = "\t"*self.depth
@@ -420,19 +421,19 @@ class Component(_Logger, dict):
             item = dict.__getitem__(self, key)
             # FIXME: ugly
             if isinstance(item, Attribute):
-                repr = "".join("%s\n%s%r" % (repr, indentation, name))
+                repr = "".join("{0}\n{1}{2!r}".format(repr, indentation, name))
             else:
                 if item.default is not None:
-                    isDefault = " (default %r) " % item.default
+                    isDefault = " (default {0!r}) ".format(item.default)
                 else:
                     isDefault = ""
                 if isinstance(item, Channel):
                     hasChannels = "NN"
                 else:
                     hasChannels = ""
-                repr = "".join("%s\n%s%r%s:%s%r"
-                               % (repr, indentation, name, hasChannels,
-                                  isDefault, item))
+                repr = "".join("{0}\n{1}{2!r}{3}:{4}{5!r}"
+                               "".format(repr, indentation, name, hasChannels,
+                                         isDefault, item))
         return repr
 
     @property
@@ -473,16 +474,16 @@ class Component(_Logger, dict):
     def checkChannels(self):
         if self.parent is not None and self.parent.hasChannels:
             self._hasChannels = True
-            self._channelTree = self._getChannels()
-            self._debug("%s: Channels found for %s component: %s"
-                        % (self.name, self.parent.name,
-                           ["%s" % x.name for x in self._channelTree]))
+            self._channelTree = self.getChannels()
+            self._debug("{0}: Channels found for {1} component: {2}",
+                        self.name, self.parent.name,
+                        ["%s" % x.name for x in self._channelTree])
         else:
-            self._debug("%s: No lower level channels found" % (self.name))
+            self._debug("{0}: No lower level channels found", self.name)
 
-    def _getChannels(self):
+    def getChannels(self):
         if self.parent is not None and self.parent.hasChannels:
-            return self.parent._getChannels()
+            return self.parent.getChannels()
         return None
 
     @timeit
@@ -513,7 +514,8 @@ class Component(_Logger, dict):
             key = DictKey(key)
         if not isinstance(value, (Component, Attribute)):
             raise ValueError("dictionary content shall be an attribute "
-                             "or another Component (given %s)" % type(value))
+                             "or another Component (given {0})"
+                             "".format(type(value)))
         self._idxs[int(key)] = key
         dict.__setitem__(self, key, value)
         value.parent = self
@@ -622,16 +624,15 @@ class Channel(Component):
         super(Channel, self).__init__(*args, **kargs)
         if len(str(howMany).zfill(2)) > CHNUMSIZE:
             raise ValueError("The number of channels can not exceed "
-                             "%d decimal digits" % (CHNUMSIZE))
+                             "{0:d} decimal digits".format(CHNUMSIZE))
         self._howMany = howMany
         self._startWith = startWith
         self._hasChannels = True
-        self._channelTree = None
-        self._debug("Build a Channel object %s" % (self.name))
+        self._debug("Build a Channel object {0}", self.name)
 
-    def _getChannels(self):
+    def getChannels(self):
         if self.parent is not None and self.parent.hasChannels:
-            parentChannels = self.parent._getChannels()
+            parentChannels = self.parent.getChannels()
             if parentChannels is not None:
                 return parentChannels + [self]
         return [self]
