@@ -31,11 +31,10 @@ __license__ = "GPLv3+"
     optional) for the actions.
 '''
 
-
 try:
     from .logger import Logger as _Logger
     from .logger import timeit
-except:
+except ImportError:
     from logger import Logger as _Logger
     from logger import timeit
 try:
@@ -45,7 +44,7 @@ try:
     from numpy import float64 as _np_float64
     from numpy import float128 as _np_float128
     _np = True
-except:
+except ImportError:
     _np = False
 try:
     from scipy import ndarray as _sp_ndarray
@@ -54,7 +53,7 @@ try:
     from scipy import float64 as _sp_float64
     from scipy import float128 as _sp_float128
     _sp = True
-except:
+except ImportError:
     _sp = False
 
 
@@ -74,11 +73,19 @@ MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
 
 
+def getId(name, minimum):
+    return sum([ord(v) << (8*i) for i, v in enumerate(name[:minimum])])
+
+
 class DictKey(_Logger, str):
     '''
         This class is made to allow the dictionary keys to find a match using
         the shorter strings allowed in the scpi specs.
     '''
+
+    __id = None
+    _minimum = MINIMUMKEYLENGHT
+
     def __init__(self, value, *args, **kargs):
         value = "%s" % value
         super(DictKey, self).__init__(*args, **kargs)
@@ -87,11 +94,17 @@ class DictKey(_Logger, str):
         self._name = value
         if 0 < len(self._name) < MINIMUMKEYLENGHT:
             self.minimum = len(value)
-        else:
-            self.minimum = MINIMUMKEYLENGHT
-        if len(self._name) < self.minimum:
+        if len(self._name) < self._minimum:
             raise NameError("value string shall be almost "
                             "the minimum size")
+        lower = self._name.lower()
+        self.__id = getId(self._name.lower(), self._minimum)
+        # this identifier uses only the minimum substring and depends on the
+        # character positions, so an anagrama will produce a different one,
+        # and it will provide a numeric way to compare keys
+
+    def __int__(self):
+        return self.__id
 
     @property
     def minimum(self):
@@ -99,9 +112,13 @@ class DictKey(_Logger, str):
 
     @minimum.setter
     def minimum(self, value):
-        if type(value) != int:
+        if not isinstance(value, int):
             raise TypeError("minimum shall be an integer")
         self._minimum = value
+
+    @property
+    def id(self):
+        return self.__id
 
     def __str__(self):
         return self._name
@@ -116,21 +133,13 @@ class DictKey(_Logger, str):
             Compare if those two names matches reducing the name until the
             minimum size.
         '''
-        if type(other) == DictKey:
-            other_name = other.name.lower()
-        elif type(other) == str:
-            other_name = other.lower()
+        if isinstance(other, str):
+            id = getId(other, self._minimum)
+        elif not isinstance(other, DictKey):
+            id = DictKey(other).id
         else:
-            return False
-        len_other_name = len(other_name)
-        self_name = self._name.lower()
-        len_self_name = len(self_name)
-        if len_other_name > len_self_name:
-            return False
-        else:
-            if other_name == self_name[:len_other_name]:
-                return True
-        return False
+            id = other.id
+        return self.__id == id
 
     def __ne__(self, other):  # => self != other
         return not self == other
@@ -386,6 +395,9 @@ class Component(_Logger, dict):
 
         Ex: COMPonent:COMPonent:ATTRibute
     '''
+
+    _idxs = None
+
     def __init__(self, *args, **kargs):
         super(Component, self).__init__(*args, **kargs)
         self._parent = None
@@ -394,6 +406,7 @@ class Component(_Logger, dict):
         self._hasChannels = False
         self._channelTree = None
         self._debug("Build a Component object %s" % (self.name))
+        self._idxs = {}
 
     def __str__(self):
         fullName = "%s" % (self._name)
@@ -407,10 +420,11 @@ class Component(_Logger, dict):
         indentation = "\t"*self.depth
         repr = ""
         for key in self.keys():
+            name = self._idxs[int(key)]
             item = dict.__getitem__(self, key)
             # FIXME: ugly
             if isinstance(item, Attribute):
-                repr = "".join("%s\n%s%r" % (repr, indentation, key))
+                repr = "".join("%s\n%s%r" % (repr, indentation, name))
             else:
                 if item.default is not None:
                     isDefault = " (default %r) " % item.default
@@ -421,7 +435,7 @@ class Component(_Logger, dict):
                 else:
                     hasChannels = ""
                 repr = "".join("%s\n%s%r%s:%s%r"
-                               % (repr, indentation, key, hasChannels,
+                               % (repr, indentation, name, hasChannels,
                                   isDefault, item))
         return repr
 
@@ -478,38 +492,59 @@ class Component(_Logger, dict):
     @timeit
     def __getitem__(self, key):
         '''
-            Given a keyword it checks if it matches, at least the first
-            'minimumkey' characters, with an key in the dictionary to return
-            its content.
+            Given a key, its identificator is checks if its matches with any of
+            the elements in the internal structure, to then return it.
         '''
-        self._debug("available keywords: %s" % (self.keys()))
-        for keyword in self.keys():
-            if keyword == key:
-                key = keyword
-                break
-        try:
-            val = dict.__getitem__(self, key)
-        except:
-            raise KeyError("%s not found" % (key))
-        self._debug("GET %s['%r'] = %s"
-                    % (str(dict.get(self, 'name_label')), key, str(val)))
-        return val
-
-    def __setitem__(self, key, val):
-        '''
-            The key is case insensitive, then we store it as lower case to
-            compare every where lower cases. Also the key corresponds to any
-            substring of it with the minimum size of 'minimumKey'
-        '''
-        if type(key) != DictKey:
+        if not isinstance(key, DictKey):
             key = DictKey(key)
-        if not isinstance(val, (Component, Attribute)):
+        try:
+            if int(key) in self._idxs.keys():
+                # name, val = dict.__getitem__(self, int(key))
+                name = self._idxs[int(key)]
+                value = dict.__getitem__(self, name)
+                # self._debug("GET %s['%r'] = %s"
+                #             % (str(dict.get(self, 'name_label')), key,
+                #                str(val)))
+                return value
+        except Exception:
+            pass
+        raise KeyError("{0} not found".format(key))
+
+    def __setitem__(self, key, value):
+        '''
+            Key has an identificator that is used as a real key in the internal
+            structure. So then any comparison is made by compare numbers.
+            Also the identificator corresponds to any substring of it with
+            the minimum size of 'minimumKey'
+        '''
+        if not isinstance(key, DictKey):
+            key = DictKey(key)
+        if not isinstance(value, (Component, Attribute)):
             raise ValueError("dictionary content shall be an attribute "
-                             "or another Component (given %s)" % type(val))
-        self._debug("SET %s['%r'] = %s"
-                    % (str(dict.get(self, 'name_label')), key, str(val)))
-        dict.__setitem__(self, key, val)
-        val.parent = self
+                             "or another Component (given %s)" % type(value))
+        # if int(key) in self.keys():
+        #     print("{0} is old".format(key))
+        # else:
+        #     print("{0} is new".format(key))
+        # self._debug("SET %s['%r'] = %s"
+        #             % (str(dict.get(self, 'name_label')), key, str(value)))
+        # dict.__setitem__(self, int(key), (key, value))
+        self._idxs[int(key)] = key
+        dict.__setitem__(self, key, value)
+        value.parent = self
+
+    def pop(self, key):
+        if not isinstance(key, DictKey):
+            key = DictKey(key)
+        # name, val = dict.pop(self, int(key))
+        name = self._idxs.pop(int(key))
+        value = dict.pop(self, name)
+        # value.parent = None
+        return value
+
+    def clear(self):
+        self._idxs = {}
+        dict.clear(self)
 
     def read(self, chlst=None, params=None):
         if self._defaultKey:
