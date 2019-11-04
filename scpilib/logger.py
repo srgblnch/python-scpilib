@@ -46,6 +46,8 @@ global lock
 lock = _Lock()
 _debug_ = False
 _log2file_ = True
+_timeit_collect_ = False
+_deprecate_collect_ = True
 
 
 def scpi_debug(value):
@@ -58,6 +60,11 @@ def scpi_log2file(value):
     _log2file_ = value
 
 
+def scpi_timeit_collection(value):
+    global _timeit_collect_
+    _timeit_collect_ = value
+
+
 _logger_NOTSET = _logging.NOTSET  # 0
 _logger_CRITICAL = _logging.CRITICAL  # 50
 _logger_ERROR = _logging.ERROR  # 40
@@ -66,7 +73,7 @@ _logger_INFO = _logging.INFO  # 20
 _logger_DEBUG = _logging.DEBUG  # 10
 
 
-__all__ = ["scpi_debug", "scpi_log2file",
+__all__ = ["scpi_debug", "scpi_log2file", "scpi_timeit_collection",
            "trace", "timeit", "deprecated",
            "timeit_collection", "deprecation_collection",
            "Logger"]
@@ -123,7 +130,7 @@ def trace(method):
 
 def timeit(method):
     def measure(*args, **kwargs):
-        if _debug_:
+        if _timeit_collect_:
             self = args[0]
             klass = self.__class__.__name__
             if klass not in timeit_collection:
@@ -133,7 +140,7 @@ def timeit(method):
                 timeit_collection[klass][method_name] = array([])
             t_0 = time()
         answer = method(*args, **kwargs)
-        if _debug_:
+        if _timeit_collect_:
             t_diff = time()-t_0
             timeit_collection[klass][method_name] = append(
                 timeit_collection[klass][method_name], t_diff)
@@ -144,7 +151,7 @@ def timeit(method):
 
 def deprecated(method):
     def collect(*args, **kwargs):
-        if _debug_:
+        if _deprecate_collect_:
             self = args[0]
             klass = self.__class__.__name__
             if klass not in deprecation_collection:
@@ -153,7 +160,7 @@ def deprecated(method):
             if method_name not in deprecation_collection[klass]:
                 deprecation_collection[klass][method_name] = 0
         answer = method(*args, **kwargs)
-        if _debug_:
+        if _deprecate_collect_:
             deprecation_collection[klass][method_name] += 1
         return answer
 

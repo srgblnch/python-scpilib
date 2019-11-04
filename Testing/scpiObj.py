@@ -47,7 +47,7 @@ from random import randint as _randint
 from sys import stdout as _stdout
 from scpilib import scpi
 from scpilib.version import version as _version
-from scpilib.logger import _logger_DEBUG
+from scpilib.logger import _logger_DEBUG, scpi_timeit_collection
 import socket as _socket
 from telnetlib import Telnet
 from time import sleep as _sleep
@@ -1047,6 +1047,7 @@ def main():
     parser.add_option('', "--debug", action="store_true", default=False,
                       help="Set the debug flag")
     (options, args) = parser.parse_args()
+    scpi_timeit_collection(True)
     for test in [testScpi]:
         try:
             test(options.debug)
