@@ -497,9 +497,6 @@ class Component(_Logger, dict):
             if int(key) in self._idxs.keys():
                 name = self._idxs[int(key)]
                 value = dict.__getitem__(self, name)
-                # self._debug("GET %s['%r'] = %s"
-                #             % (str(dict.get(self, 'name_label')), key,
-                #                str(val)))
                 return value
         except Exception:
             pass
@@ -517,8 +514,6 @@ class Component(_Logger, dict):
         if not isinstance(value, (Component, Attribute)):
             raise ValueError("dictionary content shall be an attribute "
                              "or another Component (given %s)" % type(value))
-        # self._debug("SET %s['%r'] = %s"
-        #             % (str(dict.get(self, 'name_label')), key, str(value)))
         self._idxs[int(key)] = key
         dict.__setitem__(self, key, value)
         value.parent = self
