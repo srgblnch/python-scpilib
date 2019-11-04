@@ -116,10 +116,6 @@ class DictKey(_Logger, str):
             raise TypeError("minimum shall be an integer")
         self._minimum = value
 
-    @property
-    def id(self):
-        return self.__id
-
     def __str__(self):
         return self._name
 
@@ -133,12 +129,12 @@ class DictKey(_Logger, str):
             Compare if those two names matches reducing the name until the
             minimum size.
         '''
-        if isinstance(other, str):
+        if isinstance(other, DictKey):
+            id = int(other)
+        elif isinstance(other, str):
             id = getId(other, self._minimum)
-        elif not isinstance(other, DictKey):
-            id = DictKey(other).id
         else:
-            id = other.id
+            id = int(DictKey(other))
         return self.__id == id
 
     def __ne__(self, other):  # => self != other
