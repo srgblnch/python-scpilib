@@ -495,7 +495,6 @@ class Component(_Logger, dict):
             key = DictKey(key)
         try:
             if int(key) in self._idxs.keys():
-                # name, val = dict.__getitem__(self, int(key))
                 name = self._idxs[int(key)]
                 value = dict.__getitem__(self, name)
                 # self._debug("GET %s['%r'] = %s"
@@ -518,13 +517,8 @@ class Component(_Logger, dict):
         if not isinstance(value, (Component, Attribute)):
             raise ValueError("dictionary content shall be an attribute "
                              "or another Component (given %s)" % type(value))
-        # if int(key) in self.keys():
-        #     print("{0} is old".format(key))
-        # else:
-        #     print("{0} is new".format(key))
         # self._debug("SET %s['%r'] = %s"
         #             % (str(dict.get(self, 'name_label')), key, str(value)))
-        # dict.__setitem__(self, int(key), (key, value))
         self._idxs[int(key)] = key
         dict.__setitem__(self, key, value)
         value.parent = self
@@ -532,10 +526,9 @@ class Component(_Logger, dict):
     def pop(self, key):
         if not isinstance(key, DictKey):
             key = DictKey(key)
-        # name, val = dict.pop(self, int(key))
         name = self._idxs.pop(int(key))
         value = dict.pop(self, name)
-        # value.parent = None
+        value.parent = None
         return value
 
     def clear(self):
