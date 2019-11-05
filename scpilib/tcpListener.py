@@ -19,8 +19,10 @@
 
 try:
     from .logger import Logger as _Logger
+    from .logger import deprecated
 except ValueError:
     from logger import Logger as _Logger
+    from logger import deprecated
 from gc import collect as _gccollect
 import socket as _socket
 import threading as _threading
@@ -76,18 +78,38 @@ class TcpListener(_Logger):
         TODO: describe it
     """
     # FIXME: default should be local=False
+
+    _callback = None
+    _connection_hooks = None
+    _max_clients = None
+    _join_event = None
+
+    _local = None
+    _port = None
+
+    _host_ipv4 = None
+    _listener_ipv4 = None
+    _socket_ipv4 = None
+    _stream_ipv4 = None
+
+    _withipv6suport = None
+    _host_ipv6 = None
+    _listener_ipv6 = None
+    _socket_ipv6 = None
+    _stream_ipv6 = None
+
     def __init__(self, name=None, callback=None, local=True, port=5025,
                  maxClients=_MAX_CLIENTS, ipv6=True, *args, **kwargs):
         super(TcpListener, self).__init__(*args, **kwargs)
         self._name = name or "TcpListener"
         self._callback = callback
-        self._connectionHooks = []
+        self._connection_hooks = []
         self._local = local
         self._port = port
-        self._maxClients = maxClients
-        self._joinEvent = _threading.Event()
-        self._joinEvent.clear()
-        self._connectionThreads = {}
+        self._max_clients = maxClients
+        self._join_event = _threading.Event()
+        self._join_event.clear()
+        self._connection_threads = {}
         self._withipv6suport = ipv6
         self.open()
         self._debug("Listener thread prepared")
@@ -107,28 +129,28 @@ class TcpListener(_Logger):
         self.close()
 
     def open(self):
-        self.buildIpv4Socket()
+        self.build_ipv4_socket()
         try:
-            self.buildIpv6Socket()
+            self.build_ipv6_socket()
         except Exception as exc:
             self._error("IPv6 will not be available due to: {0}", exc)
 
     def close(self):
-        if self._joinEvent.isSet():
+        if self._join_event.isSet():
             return
         self._debug("{0} close received", self._name)
-        if hasattr(self, '_joinEvent'):
+        if hasattr(self, '_join_event'):
             self._debug("Deleting TcpListener")
-            self._joinEvent.set()
-        self._shutdownSocket(self._scpi_ipv4)
-        if self._withipv6suport and hasattr(self, '_scpi_ipv6'):
-            self._shutdownSocket(self._scpi_ipv6)
-        if self._isListeningIpv4():
-            self._scpi_ipv4 = None
-        if self._withipv6suport and self._isListeningIpv6():
-            self._scpi_ipv6 = None
+            self._join_event.set()
+        self._shutdown_socket(self._socket_ipv4)
+        if self._withipv6suport and hasattr(self, '_socket_ipv6'):
+            self._shutdown_socket(self._socket_ipv6)
+        if self._is_listening_ipv4():
+            self._socket_ipv4 = None
+        if self._withipv6suport and self._is_listening_ipv6():
+            self._socket_ipv6 = None
         _gccollect()
-        while self.isAlive():
+        while self.is_alive():
             _gccollect()
             self._debug("Waiting for Listener threads")
             _sleep(1)
@@ -148,26 +170,40 @@ class TcpListener(_Logger):
         if hasattr(self, '_listener_ipv6'):
             self._listener_ipv6.start()
 
+    def is_alive(self):
+        return self._is_ipv4_listener_alive() or self._is_ipv6_listener_alive()
+
+    @deprecated
     def isAlive(self):
-        return self._isIPv4ListenerAlive() or self._isIPv6ListenerAlive()
+        return self.is_alive()
 
+    def is_listening(self):
+        return self._is_listening_ipv4() or self._is_listening_ipv6()
+
+    @deprecated
     def isListening(self):
-        return self._isListeningIpv4() or self._isListeningIpv6()
+        return self.is_listening()
 
-    def buildIpv4Socket(self):
+    def build_ipv4_socket(self):
         if self._local:
             self._host_ipv4 = '127.0.0.1'
         else:
             self._host_ipv4 = '0.0.0.0'
-        self._scpi_ipv4 = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
-        self._scpi_ipv4.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+        self._socket_ipv4 = _socket.socket(
+            _socket.AF_INET, _socket.SOCK_STREAM)
+        self._socket_ipv4.setsockopt(
+            _socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
         self._listener_ipv4 = _threading.Thread(name="Listener4",
                                                 target=self.__listener,
-                                                args=(self._scpi_ipv4,
+                                                args=(self._socket_ipv4,
                                                       self._host_ipv4,))
         self._listener_ipv4.setDaemon(True)
 
-    def buildIpv6Socket(self):
+    @deprecated
+    def buildIpv4Socket(self):
+        return self.build_ipv4_socket()
+
+    def build_ipv6_socket(self):
         if self._withipv6suport:
             if not _socket.has_ipv6:
                 raise AssertionError("IPv6 not supported by the platform")
@@ -175,36 +211,40 @@ class TcpListener(_Logger):
                 self._host_ipv6 = '::1'
             else:
                 self._host_ipv6 = '::'
-            self._scpi_ipv6 = _socket.socket(_socket.AF_INET6,
-                                             _socket.SOCK_STREAM)
-            self._scpi_ipv6.setsockopt(_socket.IPPROTO_IPV6,
-                                       _socket.IPV6_V6ONLY, True)
-            self._scpi_ipv6.setsockopt(_socket.SOL_SOCKET,
-                                       _socket.SO_REUSEADDR, 1)
+            self._socket_ipv6 = _socket.socket(_socket.AF_INET6,
+                                               _socket.SOCK_STREAM)
+            self._socket_ipv6.setsockopt(_socket.IPPROTO_IPV6,
+                                         _socket.IPV6_V6ONLY, True)
+            self._socket_ipv6.setsockopt(_socket.SOL_SOCKET,
+                                         _socket.SO_REUSEADDR, 1)
             self._listener_ipv6 = _threading.Thread(name="Listener6",
                                                     target=self.__listener,
-                                                    args=(self._scpi_ipv6,
+                                                    args=(self._socket_ipv6,
                                                           self._host_ipv6,))
             self._listener_ipv6.setDaemon(True)
 
-    def _shutdownSocket(self, sock):
+    @deprecated
+    def buildIpv6Socket(self):
+        return self.build_ipv6_socket()
+
+    def _shutdown_socket(self, sock):
         try:
             sock.shutdown(_socket.SHUT_RDWR)
         except Exception as e:
             _print_exc()
 
-    def _isIPv4ListenerAlive(self):
-        return self._listener_ipv4.isAlive()
+    def _is_ipv4_listener_alive(self):
+        return self._listener_ipv4.is_alive()
 
-    def _isIPv6ListenerAlive(self):
+    def _is_ipv6_listener_alive(self):
         if hasattr(self, '_listener_ipv6'):
-            return self._listener_ipv6.isAlive()
+            return self._listener_ipv6.is_alive()
         return False
 
     def __listener(self, scpisocket, scpihost):
         try:
-            self.__prepareListener(scpisocket, scpihost, 5)
-            self.__doListen(scpisocket)
+            self.__prepare_listener(scpisocket, scpihost, 5)
+            self.__do_listen(scpisocket)
             self._debug("Listener thread finishing")
         except SystemExit as exc:
             self._debug("Received a SystemExit ({0})", exc)
@@ -216,17 +256,17 @@ class TcpListener(_Logger):
             self._debug("Received a GeneratorExit ({0})", exc)
             self.__del__()
 
-    def __prepareListener(self, scpisocket, scpihost, maxretries):
+    def __prepare_listener(self, scpisocket, scpihost, maxretries):
         listening = False
         tries = 0
         seconds = 3
         while tries < maxretries:
             try:
                 scpisocket.bind((scpihost, self._port))
-                scpisocket.listen(self._maxClients)
+                scpisocket.listen(self._max_clients)
                 self._debug("Listener thread up and running (port {0:d}, with "
                             "a maximum of {1:d} connections in parallel).",
-                            self._port, self._maxClients)
+                            self._port, self._max_clients)
                 return True
             except Exception as exc:
                 tries += 1
@@ -237,56 +277,58 @@ class TcpListener(_Logger):
                 _sleep(seconds)
         return False
 
-    def __doListen(self, scpisocket):
-        while not self._joinEvent.isSet():
+    def __do_listen(self, scpisocket):
+        while not self._join_event.isSet():
             try:
                 connection, address = scpisocket.accept()
             except Exception as e:
-                if self._joinEvent.isSet():
+                if self._join_event.isSet():
                     self._debug("Closing Listener")
                     del scpisocket
                     return
                 # self._error("Socket Accept Exception: %s" % (e))
                 _sleep(3)
             else:
-                self.__launchConnection(address, connection)
+                self.__launch_connection(address, connection)
         scpisocket.close()
 
-    def _isListeningIpv4(self):
-        if hasattr(self, '_scpi_ipv4') and hasattr(self._scpi_ipv4, 'fileno'):
-            return bool(self._scpi_ipv4.fileno())
+    def _is_listening_ipv4(self):
+        if hasattr(self, '_socket_ipv4') and \
+                hasattr(self._socket_ipv4, 'fileno'):
+            return bool(self._socket_ipv4.fileno())
         return False
 
-    def _isListeningIpv6(self):
-        if hasattr(self, '_scpi_ipv6') and hasattr(self._scpi_ipv6, 'fileno'):
-            return bool(self._scpi_ipv6.fileno())
+    def _is_listening_ipv6(self):
+        if hasattr(self, '_socket_ipv6') and \
+                hasattr(self._socket_ipv6, 'fileno'):
+            return bool(self._socket_ipv6.fileno())
         return False
 
     @property
-    def nActiveConnections(self):
-        return len(self._connectionThreads)
+    def active_connections(self):
+        return len(self._connection_threads)
 
-    def __launchConnection(self, address, connection):
+    def __launch_connection(self, address, connection):
         connectionName = "{0}:{1}".format(address[0], address[1])
         try:
             self._debug("Connection request from {0} "
                         "(having {1:d} already active)",
-                        connectionName, self.nActiveConnections)
-            if connectionName in self._connectionThreads and \
-                    self._connectionThreads[connectionName].isAlive():
+                        connectionName, self.active_connections)
+            if connectionName in self._connection_threads and \
+                    self._connection_threads[connectionName].is_Alive():
                 self.error("New connection from {0} when it has already "
                            "one. refusing the newer.", connectionName)
-            elif self.nActiveConnections >= self._maxClients:
+            elif self.active_connections >= self._max_clients:
                 self._error("Reached the maximum number of allowed "
-                            "connections ({0:d})", self.nActiveConnections)
+                            "connections ({0:d})", self.active_connections)
             else:
-                self._connectionThreads[connectionName] = \
+                self._connection_threads[connectionName] = \
                     _threading.Thread(name=connectionName,
                                       target=self.__connection,
                                       args=(address, connection))
                 self._debug("Connection for {0} created", connectionName)
-                self._connectionThreads[connectionName].setDaemon(True)
-                self._connectionThreads[connectionName].start()
+                self._connection_threads[connectionName].setDaemon(True)
+                self._connection_threads[connectionName].start()
         except Exception as exc:
             self._error("Cannot launch connection request from {0} due to: "
                         "{1}", connectionName, exc)
@@ -295,12 +337,12 @@ class TcpListener(_Logger):
         connectionName = "{0}:{1}".format(address[0], address[1])
         self._debug("Thread for {0} connection", connectionName)
         remaining = b''
-        while not self._joinEvent.isSet():
+        while not self._join_event.isSet():
             data = connection.recv(4096)
             self._info("received from {0}: {1:d} bytes {2!r}",
                        connectionName, len(data), data)
-            if len(self._connectionHooks) > 0:
-                for hook in self._connectionHooks:
+            if len(self._connection_hooks) > 0:
+                for hook in self._connection_hooks:
                     try:
                         hook(connectionName, data)
                     except Exception as exc:
@@ -319,18 +361,26 @@ class TcpListener(_Logger):
                     connection.send(ans)
             else:
                 remaining = b''
-        self._connectionThreads.pop(connectionName)
+        self._connection_threads.pop(connectionName)
         self._debug("Ending connection: {0} (having {1} active left)",
-                    connectionName, self.nActiveConnections)
+                    connectionName, self.active_connections)
 
-    def addConnectionHook(self, hook):
+    def add_connection_hook(self, hook):
         if callable(hook):
-            self._connectionHooks.append(hook)
+            self._connection_hooks.append(hook)
         else:
             raise TypeError("The hook must be a callable object")
 
-    def removeConnectionHook(self, hook):
-        if self._connectionHooks.count(hook):
-            self._connectionHooks.pop(self._connectionHooks.index(hook))
+    @deprecated
+    def addConnectionHook(self, *args):
+        return self.add_connection_hook(*args)
+
+    def remove_connection_hook(self, hook):
+        if self._connection_hooks.count(hook):
+            self._connection_hooks.pop(self._connection_hooks.index(hook))
             return True
         return False
+
+    @deprecated
+    def removeConnectionHook(self, *args):
+        return self.remove_connection_hook(*args)
