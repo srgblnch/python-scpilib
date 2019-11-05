@@ -909,7 +909,7 @@ class LockThreadedTest(object):
             threadKey = self._clientThreads.keys()[0]
             clientThread = self._clientThreads.pop(threadKey)
             clientThread.join(1)
-            if clientThread.isAlive():
+            if clientThread.is_alive():
                 self._clientThreads[threadKey] = clientThread
 
     def _test1(self, subtest=0):  # 1st test: read access

@@ -174,7 +174,7 @@ class scpi(_Logger):
 
     @property
     def isOpen(self):
-        return any([self._services[key].isListening()
+        return any([self._services[key].is_listening()
                     for key in self._services.keys()])
 
     def open(self):
@@ -293,7 +293,7 @@ class scpi(_Logger):
             tcpListener = self._services.pop('tcpListener')
             tcpListener.close()
             self._debug("Close the active listeners and their connections.")
-            while tcpListener.isListening():
+            while tcpListener.is_listening():
                 self._warning("Waiting for listerners finish")
                 _sleep(1)
             self._debug("Building the new listeners.")

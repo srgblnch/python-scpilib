@@ -190,7 +190,7 @@ def multithreadingTake(lockObj):
     while len(userThreads) > 0:
         userThread = userThreads.pop()
         userThread.join(1)
-        if userThread.isAlive():
+        if userThread.is_alive():
             userThreads.append(userThread)
     print("All threads has finished")
     return answer
