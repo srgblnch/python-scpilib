@@ -90,13 +90,11 @@ class TcpListener(_Logger):
     _host_ipv4 = None
     _listener_ipv4 = None
     _socket_ipv4 = None
-    _stream_ipv4 = None
 
     _withipv6suport = None
     _host_ipv6 = None
     _listener_ipv6 = None
     _socket_ipv6 = None
-    _stream_ipv6 = None
 
     def __init__(self, name=None, callback=None, local=True, port=5025,
                  maxClients=_MAX_CLIENTS, ipv6=True, *args, **kwargs):
@@ -336,9 +334,10 @@ class TcpListener(_Logger):
     def __connection(self, address, connection):
         connectionName = "{0}:{1}".format(address[0], address[1])
         self._debug("Thread for {0} connection", connectionName)
+        stream = connection.makefile('rwb', bufsize=0)
         remaining = b''
         while not self._join_event.isSet():
-            data = connection.recv(4096)
+            data = stream.readline()  # data = connection.recv(4096)
             self._info("received from {0}: {1:d} bytes {2!r}",
                        connectionName, len(data), data)
             if len(self._connection_hooks) > 0:
@@ -351,6 +350,7 @@ class TcpListener(_Logger):
             data = remaining + data
             if len(data) == 0:
                 self._warning("No data received, termination the connection")
+                stream.close()
                 connection.close()
                 break
             if self._callback is not None:
@@ -358,9 +358,10 @@ class TcpListener(_Logger):
                 for line in lines:
                     ans = self._callback(line)
                     self._debug("scpi.input say {0!r}", ans)
-                    connection.send(ans)
+                    stream.write(ans)  # connection.send(ans)
             else:
                 remaining = b''
+        stream.close()
         self._connection_threads.pop(connectionName)
         self._debug("Ending connection: {0} (having {1} active left)",
                     connectionName, self.active_connections)
