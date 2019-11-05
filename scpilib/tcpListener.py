@@ -19,7 +19,7 @@
 
 try:
     from .logger import Logger as _Logger
-except ImportError:
+except ValueError:
     from logger import Logger as _Logger
 from gc import collect as _gccollect
 import socket as _socket

@@ -21,7 +21,7 @@
 from __future__ import print_function
 try:
     import __builtin__
-except ImportError:
+except ValueError:
     # Python 3
     import builtins as __builtin__
 from datetime import datetime as _datetime

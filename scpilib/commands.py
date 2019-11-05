@@ -34,7 +34,7 @@ __license__ = "GPLv3+"
 try:
     from .logger import Logger as _Logger
     from .logger import timeit
-except ImportError:
+except ValueError:
     from logger import Logger as _Logger
     from logger import timeit
 try:
@@ -44,7 +44,7 @@ try:
     from numpy import float64 as _np_float64
     from numpy import float128 as _np_float128
     _np = True
-except ImportError:
+except ValueError:
     _np = False
 try:
     from scipy import ndarray as _sp_ndarray
@@ -53,7 +53,7 @@ try:
     from scipy import float64 as _sp_float64
     from scipy import float128 as _sp_float128
     _sp = True
-except ImportError:
+except ValueError:
     _sp = False
 
 
