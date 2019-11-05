@@ -204,7 +204,11 @@ class scpi(_Logger):
         self._services['tcpListener'].listen()
 
     def addConnectionHook(self, hook):
-        for service in self._services.itervalues():
+        try:
+            services = self._services.itervalues()
+        except AttributeError:
+            services = self._services.values()
+        for service in services:
             if hasattr(service, 'addConnectionHook'):
                 try:
                     service.addConnectionHook(hook)
@@ -215,7 +219,11 @@ class scpi(_Logger):
                 self._warning("Service {0} doesn't support hooks", service)
 
     def removeConnectionHook(self, hook):
-        for service in self._services.itervalues():
+        try:
+            services = self._services.itervalues()
+        except AttributeError:
+            services = self._services.values()
+        for service in services:
             if hasattr(service, 'removeConnectionHook'):
                 if not service.removeConnectionHook(hook):
                     self._warning("Service {0} refuse to remove the hook",
@@ -415,7 +423,7 @@ class scpi(_Logger):
         self._debug("Received {0!r} input", line)
 #         if not self._isAccessAllowed():
 #             return ''
-        start_t = _time()
+#         start_t = _time()
         while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
             self._debug("from {0!r} remove {1!r}", line, line[-1])
             line = line[:-1]
@@ -449,12 +457,12 @@ class scpi(_Logger):
                 answer = self._process_normal_command(command)
                 if answer is not None:
                     results.append(answer)
-        self._debug("Answers: {0!r}", results)
+        # self._debug("Answers: {0!r}", results)
         answer = ""
         for res in results:
             answer = "".join("{0}{1};".format(answer, res))
         self._debug("Answer: {0}", answer)
-        self._debug("Query reply send after {0:g} ms", (_time()-start_t)*1000)
+        # self._debug("Query reply send after {0:g} ms", (_time()-start_t)*1000)
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
