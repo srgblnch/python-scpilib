@@ -418,18 +418,17 @@ class scpi(_Logger):
             return self._dataFormat
         self._dataFormat = value
 
+    @property
+    def valid_separators(self):
+        return ['\r', '\n', ';']
+
     @timeit
     def input(self, line):
         self._debug("Received {0!r} input", line)
 #         if not self._isAccessAllowed():
 #             return ''
 #         start_t = _time()
-        while len(line) > 0 and line[-1] in ['\r', '\n', ';']:
-            self._debug("from {0!r} remove {1!r}", line, line[-1])
-            line = line[:-1]
-        if len(line) == 0:
-            return ''
-        line = line.split(';')
+        line = self._prepare_input_line(line)
         results = []
         for i, command in enumerate(line):
             command = command.strip()  # avoid '\n' terminator if exist
@@ -439,17 +438,10 @@ class scpi(_Logger):
                 if answer is not None:
                     results.append(answer)
             elif command.startswith(':'):
-                if i == 0:
-                    self._error("For command {0!r}: Not possible to start "
-                                "with ':', without previous command",
-                                command)
+                command = self._complete_partial_command(command, i, line)
+                if command is None:
                     results.append(float('NaN'))
                 else:
-                    # populate fields pre-':'
-                    # with the previous (i-1) command
-                    command = "".join(
-                        "{0}{1}".format(line[i-1].rsplit(':', 1)[0], command))
-                    self._debug("Command expanded to {0!r}", command)
                     answer = self._process_normal_command(command)
                     if answer is not None:
                         results.append(answer)
@@ -469,47 +461,58 @@ class scpi(_Logger):
         # return answer + '\r\n'
         return ''
 
+    @timeit
+    def _prepare_input_line(self, input):
+        while len(input) > 0 and input[-1] in self.valid_separators:
+            self._debug("from {0!r} remove {1!r}", input, input[-1])
+            input = input[:-1]
+        if len(input) == 0:
+            return ''
+        return input.split(';')
+
+    @timeit
+    def _complete_partial_command(self, command, position, previous):
+        if position == 0:
+            self._error("For command {0!r}: Not possible to start "
+                        "with ':', without previous command",
+                        command)
+            return
+        # populate fields pre-':'
+        # with the previous (i-1) command
+        command = "".join(
+            "{0}{1}".format(previous[position-1].rsplit(':', 1)[0], command))
+        self._debug("Command expanded to {0!r}", command)
+        return command
+
+    @timeit
     def _process_special_command(self, cmd):
-        start_t = _time()
-        result = None
+        if not self._isAccessAllowed():
+            return float('NaN')
+        # start_t = _time()
+        # result = None
         # FIXME: ugly
-        self._debug("current special keys: {0}", self._specialCmds.keys())
+        # self._debug("current special keys: {0}", self._specialCmds.keys())
         if cmd.count(':') > 0:  # Not expected in special commands
             return float('NaN')
-        for key in self._specialCmds.keys():
-            self._debug("testing key {0} ?= {1}", key, cmd)
-            if cmd.lower().startswith(key.lower()):
-                if cmd.endswith('?'):
-                    if self._isAccessAllowed():
-                        self._debug("Requesting read of {0}", key)
-                        result = self._specialCmds[key].read()
-                        break
-                    else:
-                        result = float('NaN')
-                        break
-                if cmd.count(' ') > 0:
-                    if self._isAccessAllowed() and\
-                            self._isWriteAccessAllowed():
-                        bar = cmd.split(' ')
-                        name, value = bar
-                        self._debug("Requesting write of {0} with value {1}",
-                                    name, value)
-                        # TODO: By default don't provide a readback,
-                        #       but there will be an SCPI command to return
-                        #       an answer to the write commands
-                        self._specialCmds[name].write(value)
-                    break
-                self._debug("Requesting write of {0} without value", key)
-                # TODO: By default don't provide a readback,
-                #       but there will be an SCPI command to return
-                #       an answer to the write commands
-                self._specialCmds[key].write()
-                break
-        self._debug("special command {0} processed in {1:g} ms",
-                    cmd, (_time()-start_t)*1000)
-        return result
+        if cmd.endswith('?'):
+            is_a_query = True
+            cmd = cmd[:-1]
+        else:
+            if not self._isWriteAccessAllowed():
+                return float('NaN')
+            is_a_query = False
+            pair = cmd.split(' ', 1)
+            if len(pair) == 1:
+                cmd, args = pair, None  # write without params
+            else:
+                cmd, args = pair
+        if cmd in self._specialCmds.keys():
+            if is_a_query:
+                return self._specialCmds[cmd].read()
+            return self._specialCmds[cmd].write(args)
+        return float('NaN')
 
-    # @trace
+    @timeit
     def _process_normal_command(self, cmd):
         start_t = _time()
         answer = 'ACK'
