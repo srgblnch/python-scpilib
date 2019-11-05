@@ -122,7 +122,7 @@ class DictKey(_Logger, str):
         return "%s%s" % (self._name[0:self._minimum].upper(),
                          self._name[self._minimum:])
 
-    @timeit
+    # @timeit
     def __eq__(self, other):  # => self == other
         '''
             Compare if those two names matches reducing the name until the
@@ -486,7 +486,7 @@ class Component(_Logger, dict):
             return self.parent.getChannels()
         return None
 
-    @timeit
+    # @timeit
     def __getitem__(self, key):
         '''
             Given a key, its identificator is checks if its matches with any of
