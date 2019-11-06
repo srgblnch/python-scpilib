@@ -238,6 +238,7 @@ class Attribute(DictKey):
     def read_cb(self, function):
         self._read_cb = function
 
+    @timeit
     def read(self, chlst=None, params=None):
         if self._read_cb is not None:
             if self.hasChannels and chlst is not None:
@@ -320,6 +321,7 @@ class Attribute(DictKey):
     def write_cb(self, function):
         self._write_cb = function
 
+    @timeit
     def write(self, chlst=None, value=None):
         self._debug("{0}.write(ch={1}, value={2})", self.name, chlst, value)
         if self._write_cb is not None:
@@ -533,11 +535,13 @@ class Component(_Logger, dict):
         self._idxs = {}
         dict.clear(self)
 
+    @timeit
     def read(self, chlst=None, params=None):
         if self._defaultKey:
             return self.__getitem__(self._defaultKey).read(chlst, params)
         return float('NaN')
 
+    @timeit
     def write(self, chlst=None, value=None):
         if self._defaultKey:
             return self.__getitem__(self._defaultKey).write(chlst, value)
