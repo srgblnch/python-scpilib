@@ -146,26 +146,29 @@ def testScpi(debug, pause):
     with scpi(local=True, debug=debug, writeLock=True) as scpiObj:
         results = []
         resultMsgs = []
-        for test in [
-            checkIDN,
-            addInvalidCmds,
-            addValidCommands,
-            checkCommandQueries,
-            checkCommandWrites,
-            checkNonexistingCommands,
-            checkArrayAnswers,
-            checkMultipleCommands,
-            checkReadWithParams,
-            checkWriteWithoutParams,
-            # checkLocks,
-            # checkTelnetHooks,
-        ]:
-            result, msg = test(scpiObj)
-            results.append(result)
-            tag, value = msg.rsplit(' ', 1)
-            resultMsgs.append([tag, value])
-            if _afterTestWait(pause) is False:
-                break
+        try:
+            for test in [
+                checkIDN,
+                addInvalidCmds,
+                addValidCommands,
+                checkCommandQueries,
+                checkCommandWrites,
+                checkNonexistingCommands,
+                checkArrayAnswers,
+                checkMultipleCommands,
+                checkReadWithParams,
+                checkWriteWithoutParams,
+                # checkLocks,
+                # checkTelnetHooks,
+            ]:
+                result, msg = test(scpiObj)
+                results.append(result)
+                tag, value = msg.rsplit(' ', 1)
+                resultMsgs.append([tag, value])
+                if _afterTestWait(pause) is False:
+                    break
+        except KeyboardInterrupt:
+            print("Test interrupted...")
     if all(results):
         _printHeader("All tests passed: everything OK (%g s)"
                      % (_time()-start_t))
@@ -790,8 +793,9 @@ def _cutMultipleAnswer(answerStr):
             headerSize = int(answerStr[1])
             bodySize = int(answerStr[2:headerSize+2])
             bodyBlock = answerStr[headerSize+2:bodySize+headerSize+2]
-            # print("with a headerSize of %d and a bodySize of %s, %d elements "
-            #       "in the body" % (headerSize, bodySize, len(bodyBlock)))
+            # print("with a headerSize of %d and a bodySize of %s, "
+            #       "%d elements in the body" % (headerSize, bodySize,
+            #                                    len(bodyBlock)))
             answerStr = answerStr[2+headerSize+bodySize:]
             if len(answerStr) > 0:
                 answerStr = answerStr[1:]
