@@ -285,18 +285,12 @@ class Logger(object):
     def log2File(self, boolean):
         if type(boolean) is not bool:
             raise AssertionError("The parameter must be a boolean")
-        if self.__log2file != boolean:
-            self.logMessage("log2File() set to %s"
-                            % self.__log2file, _logger_DEBUG)
         self.__log2file = boolean
 
     def logEnable(self, dbg=False):
         if type(dbg) is not bool:
             raise AssertionError("The parameter must be a boolean")
         self.__debugFlag = dbg
-        if self.__debugFlag:
-            self.logMessage("logEnable()::Debug flag set to {0}"
-                            "".format(self.__debugFlag), _logger_DEBUG)
 
     def logState(self):
         return self.__debugFlag
@@ -309,13 +303,6 @@ class Logger(object):
         self._devlogger.setLevel(level)
         if self._handler is not None:
             self._handler.setLevel(level)
-        if self.__debugFlag:
-            self.logMessage("logEnable()::Debug level set to {0}"
-                            "".format(self.__debuglevel), _logger_DEBUG)
-#         if self._handler is not None:
-#             self._handler.setLevel(level)
-#         self.logMessage("logEnable()::Debug level set to %s"
-#                         % (self.__debuglevel), _logger_INFO)
 
     def logGetLevel(self):
         return self.__debuglevel
