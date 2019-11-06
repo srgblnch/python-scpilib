@@ -193,7 +193,7 @@ def checkIDN(scpiObj):
     _printHeader("Test instrument identification")
     try:
         identity = InstrumentIdentification('ALBA', 'test', 0, _version())
-        scpiObj.addSpecialCommand('IDN', identity.idn)
+        scpiObj.add_special_command('IDN', identity.idn)
         cmd = "*idn?"
         answer = _send2Input(scpiObj, cmd)
         print("\tRequest identification: %s\n\tAnswer: %r" % (cmd, answer))
@@ -209,7 +209,7 @@ def checkIDN(scpiObj):
 def addInvalidCmds(scpiObj):
     _printHeader("Testing to build invalid commands")
     try:
-        scpiObj.addCommand(":startswithcolon", readcb=None)
+        scpiObj.add_command(":startswithcolon", readcb=None)
     except NameError as e:
         print("\tNull name test PASSED")
     except Exception as e:
@@ -217,7 +217,7 @@ def addInvalidCmds(scpiObj):
         print_exc()
         return False, "Invalid commands test FAILED"
     try:
-        scpiObj.addCommand("double::colons", readcb=None)
+        scpiObj.add_command("double::colons", readcb=None)
     except NameError as e:
         print("\tDouble colon name test PASSED")
     except Exception as e:
@@ -225,9 +225,9 @@ def addInvalidCmds(scpiObj):
         print_exc()
         return False, "Invalid commands test FAILED"
     try:
-        scpiObj.addCommand("nestedSpecial:*special", readcb=None)
+        scpiObj.add_command("nestedSpecial:*special", readcb=None)
     except NameError as e:
-        scpiObj._commandTree.pop('nestedSpecial')
+        scpiObj.command_tree.pop('nestedSpecial')
         print("\tNested special command test PASSED")
     except Exception as e:
         print("\tUnexpected kind of exception! %s" % e)
@@ -245,25 +245,25 @@ def addValidCommands(scpiObj):
         currentObj = AttrTest()
         voltageObj = AttrTest()
         # * commands can de added by telling their full name:
-        scpiObj.addCommand('source:current:upper',
-                           readcb=currentObj.upperLimit,
-                           writecb=currentObj.upperLimit)
-        scpiObj.addCommand('source:current:lower',
-                           readcb=currentObj.lowerLimit,
-                           writecb=currentObj.lowerLimit)
-        scpiObj.addCommand('source:current:value',
-                           readcb=currentObj.readTest,
-                           default=True)
-        scpiObj.addCommand('source:voltage:upper',
-                           readcb=voltageObj.upperLimit,
-                           writecb=voltageObj.upperLimit)
-        scpiObj.addCommand('source:voltage:lower',
-                           readcb=voltageObj.lowerLimit,
-                           writecb=voltageObj.lowerLimit)
-        scpiObj.addCommand('source:voltage:value', readcb=voltageObj.readTest,
-                           default=True)
-        scpiObj.addCommand('source:voltage:exception',
-                           readcb=voltageObj.exceptionTest)
+        scpiObj.add_command('source:current:upper',
+                            readcb=currentObj.upperLimit,
+                            writecb=currentObj.upperLimit)
+        scpiObj.add_command('source:current:lower',
+                            readcb=currentObj.lowerLimit,
+                            writecb=currentObj.lowerLimit)
+        scpiObj.add_command('source:current:value',
+                            readcb=currentObj.readTest,
+                            default=True)
+        scpiObj.add_command('source:voltage:upper',
+                            readcb=voltageObj.upperLimit,
+                            writecb=voltageObj.upperLimit)
+        scpiObj.add_command('source:voltage:lower',
+                            readcb=voltageObj.lowerLimit,
+                            writecb=voltageObj.lowerLimit)
+        scpiObj.add_command('source:voltage:value', readcb=voltageObj.readTest,
+                            default=True)
+        scpiObj.add_command('source:voltage:exception',
+                            readcb=voltageObj.exceptionTest)
         # * They can be also created in an iterative way
         baseCmdName = 'basicloop'
         for (subCmdName, subCmdObj) in [('current', currentObj),
@@ -277,17 +277,18 @@ def addValidCommands(scpiObj):
                         default = True
                     else:
                         default = False
-                    scpiObj.addCommand('%s:%s:%s'
-                                       % (baseCmdName, subCmdName, attrName),
-                                       readcb=cbFunc, default=default)
-                    # Basically is the same than the first example, but the
-                    # addCommand is constructed with variables in neasted loops
+                    scpiObj.add_command('%s:%s:%s'
+                                        % (baseCmdName, subCmdName, attrName),
+                                        readcb=cbFunc, default=default)
+                    # Basically is the same than the first example,
+                    # but the add_command is constructed with variables
+                    # in neasted loops
         # * Another alternative to create the tree in an iterative way would be
         itCmd = 'iterative'
-        itObj = scpiObj.addComponent(itCmd, scpiObj._commandTree)
+        itObj = scpiObj.add_component(itCmd, scpiObj.command_tree)
         for (subcomponent, subCmdObj) in [('current', currentObj),
                                           ('voltage', voltageObj)]:
-            subcomponentObj = scpiObj.addComponent(subcomponent, itObj)
+            subcomponentObj = scpiObj.add_component(subcomponent, itObj)
             for (attrName, attrFunc) in [('upper', 'upperLimit'),
                                          ('lower', 'lowerLimit'),
                                          ('value', 'readTest')]:
@@ -297,8 +298,8 @@ def addValidCommands(scpiObj):
                         default = True
                     else:
                         default = False
-                    attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
-                                                   cbFunc, default=default)
+                    attrObj = scpiObj.add_attribute(attrName, subcomponentObj,
+                                                    cbFunc, default=default)
                 else:
                     print("%s hasn't %s" % (subcomponentObj, attrFunc))
                     # In this case, the intermediate objects of the tree are
@@ -309,12 +310,12 @@ def addValidCommands(scpiObj):
                     #  * have the appropiate leafs.
         # * Example of how can be added a node with channels in the scpi tree
         chCmd = 'channel'
-        chObj = scpiObj.addChannel(chCmd, nChannels, scpiObj._commandTree)
+        chObj = scpiObj.add_channel(chCmd, nChannels, scpiObj.command_tree)
         chCurrentObj = ChannelTest(nChannels)
         chVoltageObj = ChannelTest(nChannels)
         for (subcomponent, subCmdObj) in [('current', chCurrentObj),
                                           ('voltage', chVoltageObj)]:
-            subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
+            subcomponentObj = scpiObj.add_component(subcomponent, chObj)
             for (attrName, attrFunc) in [('upper', 'upperLimit'),
                                          ('lower', 'lowerLimit'),
                                          ('value', 'readTest')]:
@@ -324,19 +325,19 @@ def addValidCommands(scpiObj):
                         default = True
                     else:
                         default = False
-                    attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
-                                                   cbFunc, default=default)
+                    attrObj = scpiObj.add_attribute(attrName, subcomponentObj,
+                                                    cbFunc, default=default)
         # * Example of how can be nested channel type components in a tree that
         #   already have this channels componets defined.
         measCmd = 'measurements'
-        measObj = scpiObj.addComponent(measCmd, chObj)
+        measObj = scpiObj.add_component(measCmd, chObj)
         fnCmd = 'function'
-        fnObj = scpiObj.addChannel(fnCmd, nSubchannels, measObj)
+        fnObj = scpiObj.add_channel(fnCmd, nSubchannels, measObj)
         chfnCurrentObj = SubchannelTest(nChannels, nSubchannels)
         chfnVoltageObj = SubchannelTest(nChannels, nSubchannels)
         for (subcomponent, subCmdObj) in [('current', chfnCurrentObj),
                                           ('voltage', chfnVoltageObj)]:
-            subcomponentObj = scpiObj.addComponent(subcomponent, fnObj)
+            subcomponentObj = scpiObj.add_component(subcomponent, fnObj)
             for (attrName, attrFunc) in [('upper', 'upperLimit'),
                                          ('lower', 'lowerLimit'),
                                          ('value', 'readTest')]:
@@ -346,9 +347,9 @@ def addValidCommands(scpiObj):
                         default = True
                     else:
                         default = False
-                    attrObj = scpiObj.addAttribute(attrName, subcomponentObj,
-                                                   cbFunc, default=default)
-        print("Command tree build: %r" % (scpiObj._commandTree))
+                    attrObj = scpiObj.add_attribute(attrName, subcomponentObj,
+                                                    cbFunc, default=default)
+        print("Command tree build: %r" % (scpiObj.command_tree))
         result = True, "Valid commands test PASSED"
         # TODO: channels with channels until the attributes
     except Exception as e:
@@ -392,43 +393,43 @@ def checkCommandWrites(scpiObj):
     try:
         # simple commands ---
         currentConfObj = WattrTest()
-        scpiObj.addCommand('source:current:configure',
-                           readcb=currentConfObj.readTest,
-                           writecb=currentConfObj.writeTest)
+        scpiObj.add_command('source:current:configure',
+                            readcb=currentConfObj.readTest,
+                            writecb=currentConfObj.writeTest)
         voltageConfObj = WattrTest()
-        scpiObj.addCommand('source:voltage:configure',
-                           readcb=voltageConfObj.readTest,
-                           writecb=voltageConfObj.writeTest)
+        scpiObj.add_command('source:voltage:configure',
+                            readcb=voltageConfObj.readTest,
+                            writecb=voltageConfObj.writeTest)
         for inner in ['current', 'voltage']:
             _doWriteCommand(scpiObj, "source:%s:configure" % (inner))
         _wait(1)  # FIXME: remove
         # channel commands ---
         _printHeader("Testing to channel command writes")
         baseCmd = 'writable'
-        wObj = scpiObj.addComponent(baseCmd, scpiObj._commandTree)
+        wObj = scpiObj.add_component(baseCmd, scpiObj.command_tree)
         chCmd = 'channel'
-        chObj = scpiObj.addChannel(chCmd, nChannels, wObj)
+        chObj = scpiObj.add_channel(chCmd, nChannels, wObj)
         chCurrentObj = WchannelTest(nChannels)
         chVoltageObj = WchannelTest(nChannels)
         for (subcomponent, subCmdObj) in [('current', chCurrentObj),
                                           ('voltage', chVoltageObj)]:
-            subcomponentObj = scpiObj.addComponent(subcomponent, chObj)
+            subcomponentObj = scpiObj.add_component(subcomponent, chObj)
             for (attrName, attrFunc) in [('upper', 'upperLimit'),
                                          ('lower', 'lowerLimit'),
                                          ('value', 'readTest')]:
                 if hasattr(subCmdObj, attrFunc):
                     if attrName == 'value':
-                        attrObj = scpiObj.addAttribute(attrName,
-                                                       subcomponentObj,
-                                                       readcb=subCmdObj.
-                                                       readTest,
-                                                       writecb=subCmdObj.
-                                                       writeTest,
-                                                       default=True)
+                        attrObj = scpiObj.add_attribute(attrName,
+                                                        subcomponentObj,
+                                                        readcb=subCmdObj.
+                                                        readTest,
+                                                        writecb=subCmdObj.
+                                                        writeTest,
+                                                        default=True)
                     else:
                         cbFunc = getattr(subCmdObj, attrFunc)
-                        attrObj = scpiObj.addAttribute(attrName,
-                                                       subcomponentObj, cbFunc)
+                        attrObj = scpiObj.add_attribute(
+                            attrName, subcomponentObj, cbFunc)
         print("\nChecking one write multiple reads\n")
         for i in range(nChannels):
             rndCh = _randint(1, nChannels)
@@ -454,9 +455,9 @@ def checkCommandWrites(scpiObj):
         selectionCmd = 'source:selection'
         selectionObj = WattrTest()
         selectionObj.writeTest(False)
-        scpiObj.addCommand(selectionCmd, readcb=selectionObj.readTest,
-                           writecb=selectionObj.writeTest,
-                           allowedArgins=[True, False])
+        scpiObj.add_command(selectionCmd, readcb=selectionObj.readTest,
+                            writecb=selectionObj.writeTest,
+                            allowedArgins=[True, False])
         _doWriteCommand(scpiObj, selectionCmd, True)
         # _doWriteCommand(scpiObj, selectionCmd, 'Fals')
         # _doWriteCommand(scpiObj, selectionCmd, 'True')
@@ -537,15 +538,15 @@ def checkArrayAnswers(scpiObj):
         baseCmd = 'source'
         attrCmd = 'buffer'
         longTest = ArrayTest(100)
-        scpiObj.addCommand(attrCmd, readcb=longTest.readTest)
+        scpiObj.add_command(attrCmd, readcb=longTest.readTest)
         # current
         CurrentObj = ArrayTest(5)
         CurrentCmd = "%s:current:%s" % (baseCmd, attrCmd)
-        scpiObj.addCommand(CurrentCmd, readcb=CurrentObj.readTest)
+        scpiObj.add_command(CurrentCmd, readcb=CurrentObj.readTest)
         # voltage
         VoltageObj = ArrayTest(5)
         VoltageCmd = "%s:voltage:%s" % (baseCmd, attrCmd)
-        scpiObj.addCommand(VoltageCmd, readcb=VoltageObj.readTest)
+        scpiObj.add_command(VoltageCmd, readcb=VoltageObj.readTest)
         # queries
         answersLengths = {}
         for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
@@ -606,7 +607,7 @@ def checkReadWithParams(scpiObj):
     try:
         cmd = 'reader:with:parameters'
         longTest = ArrayTest(100)
-        scpiObj.addCommand(cmd, readcb=longTest.readRange)
+        scpiObj.add_command(cmd, readcb=longTest.readRange)
         answer = _send2Input(scpiObj, "DataFormat ASCII", checkAnswer=False)
         for i in range(10):
             bar, foo = _randint(0, 100), _randint(0, 100)
@@ -635,7 +636,7 @@ def checkWriteWithoutParams(scpiObj):
     try:
         cmd = 'writter:without:parameters'
         switch = WattrTest()
-        scpiObj.addCommand(cmd, readcb=switch.switchTest)
+        scpiObj.add_command(cmd, readcb=switch.switchTest)
         for i in range(3):
             cmd = "%s%s" % (cmd, " "*i)
             answer = _send2Input(scpiObj, cmd, checkAnswer=False)

@@ -67,7 +67,7 @@ def __version__():
     return _version()
 
 
-def splitParams(data):
+def split_params(data):
     groups = PARAM_RE.match(data).groupdict()
     args = groups['args'].strip()
     query = '?' if groups['query'] == '?' else (' ' if args else None)
@@ -87,18 +87,24 @@ class scpi(_Logger):
        can be called once the object is created by setting the object property
        'remoteAllowed' to True.
     '''
-    def __init__(self, commandTree=None, specialCommands=None,
+
+    _name = None
+    _command_tree = None
+
+    _data_format = None
+
+    def __init__(self, command_tree=None, specialCommands=None,
                  local=True, port=5025, autoOpen=False,
                  services=None, writeLock=False, debug=False, *args, **kwargs):
         scpi_debug(debug)
         super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
-        self._commandTree = commandTree or Component()
-        self._commandTree.logEnable(self.logState())
-        self._commandTree.logLevel(self.logGetLevel())
+        self._command_tree = command_tree or Component()
+        self._command_tree.logEnable(self.logState())
+        self._command_tree.logLevel(self.logGetLevel())
         self._specialCmds = specialCommands or {}
         self._debug("Special commands: {0!r}", specialCommands)
-        self._debug("Given commands: {0!r}", self._commandTree)
+        self._debug("Given commands: {0!r}", self._command_tree)
         self._local = local
         self._port = port
         self._services = {}
@@ -110,8 +116,8 @@ class scpi(_Logger):
                 self._local = bool(services & TCPLISTENER_LOCAL)
         if autoOpen:
             self.open()
-        self.__buildDataFormatAttribute()
-        self.__buildSystemComponent(writeLock)
+        self.__build_data_format_attribute()
+        self.__build_system_component(writeLock)
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -133,6 +139,19 @@ class scpi(_Logger):
             self.close()
         self.__summary_timeit()
         self.__summary_deprecated()
+
+    def __str__(self):
+        return str(self.name)
+
+    def __repr__(self):
+        if 'idn' in self._specialCmds:
+            return "{0}({1})".format(
+                self.name, self._specialCmds['idn'].read())
+        return "{0}()".format(self.name)
+
+    @property
+    def command_tree(self):
+        return self._command_tree
 
     def __summary_timeit(self):
         msg = ""
@@ -171,15 +190,6 @@ class scpi(_Logger):
         if len(msg) > 0:
             self._warning("deprecations summary:\n{0}", msg)
 
-    def __str__(self):
-        return str(self.name)
-
-    def __repr__(self):
-        if 'idn' in self._specialCmds:
-            return "{0}({1})".format(
-                self.name, self._specialCmds['idn'].read())
-        return "{0}()".format(self.name)
-
     # # communications ares ---
 
     # TODO: status information method ---
@@ -187,18 +197,23 @@ class scpi(_Logger):
     # TODO: other incoming channels than network ---
 
     @property
-    def isOpen(self):
+    def is_open(self):
         return any([self._services[key].is_listening()
                     for key in self._services.keys()])
 
+    # @deprecated
+    @property
+    def isOpen(self):
+        return self.is_open
+
     def open(self):
         if not self.isOpen:
-            self.__buildTcpListener()
+            self.__build_tcp_listener()
         else:
             self._warning("Already Open")
 
     def close(self):
-        if self.isOpen:
+        if self.is_open:
             self._debug("Close services")
             for key in self._services.keys():
                 self._debug("Close service {0}", key)
@@ -208,7 +223,7 @@ class scpi(_Logger):
         else:
             self._warning("Already Close")
 
-    def __buildTcpListener(self):
+    def __build_tcp_listener(self):
         self._debug("Opening tcp listener ({0})",
                     "local" if self._local else "remote")
         self._services['tcpListener'] = TcpListener(name="TcpListener",
@@ -217,7 +232,7 @@ class scpi(_Logger):
                                                     port=self._port)
         self._services['tcpListener'].listen()
 
-    def addConnectionHook(self, hook):
+    def add_connection_hook(self, hook):
         try:
             services = self._services.itervalues()
         except AttributeError:
@@ -232,7 +247,11 @@ class scpi(_Logger):
             else:
                 self._warning("Service {0} doesn't support hooks", service)
 
-    def removeConnectionHook(self, hook):
+    @deprecated
+    def addConnectionHook(self, hook):
+        return self.add_connection_hook(hook)
+
+    def remove_connection_hook(self, hook):
         try:
             services = self._services.itervalues()
         except AttributeError:
@@ -245,18 +264,22 @@ class scpi(_Logger):
             else:
                 self._warning("Service {0} doesn't support hooks", service)
 
-    def __buildDataFormatAttribute(self):
-        self._dataFormat = 'ASCII'
-        self.addAttribute('DataFormat', self._commandTree,
-                          self.dataFormat, self.dataFormat,
-                          allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
-                                         'SINGLE', 'HALF'])
+    @deprecated
+    def removeConnectionHook(self, hook):
+        return self.remove_connection_hook(hook)
 
-    def __buildSystemComponent(self, writeLock):
-        systemTree = self.addComponent('system', self._commandTree)
-        self.__buildLockerComponent(systemTree)
+    def __build_data_format_attribute(self):
+        self._data_format = 'ASCII'
+        self.add_attribute('DataFormat', self._command_tree,
+                           self.data_format, self.data_format,
+                           allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
+                                          'SINGLE', 'HALF'])
+
+    def __build_system_component(self, writeLock):
+        system_tree = self.add_component('system', self._command_tree)
+        self.__build_locker_component(system_tree)
         if writeLock:
-            self.__buildWLockerComponent(systemTree)
+            self.__build_wlocker_component(system_tree)
         else:
             self._wlock = None
         # TODO: other SYSTem components from SCPI-99 (pages 21-*)
@@ -275,32 +298,37 @@ class scpi(_Logger):
         #       :SYSTem:TZONe
         #       :SYSTem:VERSion
 
-    def __buildLockerComponent(self, commandTree):
+    def __build_locker_component(self, command_tree):
         self._lock = _Locker(name='readLock')
-        subTree = self.addComponent('LOCK', commandTree)
-        self.addAttribute('owner', subTree, self._lock.Owner, default=True)
-        self.addAttribute('release', subTree, readcb=self._lock.release,
-                          writecb=self._lock.release)
-        self.addAttribute('request', subTree,
-                          readcb=self._lock.request,
-                          writecb=self._lock.request)
+        sub_tree = self.add_component('LOCK', command_tree)
+        self.add_attribute('owner', sub_tree, self._lock.Owner, default=True)
+        self.add_attribute('release', sub_tree, readcb=self._lock.release,
+                           writecb=self._lock.release)
+        self.add_attribute('request', sub_tree,
+                           readcb=self._lock.request,
+                           writecb=self._lock.request)
 
-    def __buildWLockerComponent(self, commandTree):
+    def __build_wlocker_component(self, command_tree):
         self._wlock = _Locker(name='writeLock')
-        subTree = self.addComponent('WLOCK', commandTree)
-        self.addAttribute('owner', subTree, self._wlock.Owner, default=True)
-        self.addAttribute('release', subTree, readcb=self._wlock.release,
-                          writecb=self._wlock.release)
-        self.addAttribute('request', subTree,
-                          readcb=self._wlock.request,
-                          writecb=self._wlock.request)
+        sub_tree = self.add_component('WLOCK', command_tree)
+        self.add_attribute('owner', sub_tree, self._wlock.Owner, default=True)
+        self.add_attribute('release', sub_tree, readcb=self._wlock.release,
+                           writecb=self._wlock.release)
+        self.add_attribute('request', sub_tree,
+                           readcb=self._wlock.request,
+                           writecb=self._wlock.request)
 
     @property
-    def remoteAllowed(self):
+    def remote_allowed(self):
         return not self._services['tcpListener'].local
 
-    @remoteAllowed.setter
-    def remoteAllowed(self, value):
+    # @deprecated
+    @property
+    def remoteAllowed(self):
+        return self.remote_allowed
+
+    @remote_allowed.setter
+    def remote_allowed(self, value):
         if type(value) is not bool:
             raise AssertionError("Only boolean can be assigned")
         if value != (not self._services['tcpListener'].local):
@@ -312,17 +340,22 @@ class scpi(_Logger):
                 _sleep(1)
             self._debug("Building the new listeners.")
             if value is True:
-                self.__buildTcpListener(TCPLISTENER_REMOTE)
+                self.__build_tcp_listener(TCPLISTENER_REMOTE)
             else:
-                self.__buildTcpListener(TCPLISTENER_LOCAL)
+                self.__build_tcp_listener(TCPLISTENER_LOCAL)
         else:
             self._debug("Nothing to do when setting like it was.")
+
+    # @deprecated
+    @remoteAllowed.setter
+    def remoteAllowed(self, value):
+        self.remote_allowed = value
 
     # done communications area ---
 
     # # command introduction area ---
 
-    def addSpecialCommand(self, name, readcb, writecb=None):
+    def add_special_command(self, name, readcb, writecb=None):
         '''
             Adds a command '*%s'%(name). If finishes with a '?' mark it will
             be called the readcb method, else will be the writecb method.
@@ -342,11 +375,20 @@ class scpi(_Logger):
         self._debug("Adding special command '*{0}'".format(name))
         BuildSpecialCmd(name, self._specialCmds, readcb, writecb)
 
+    @deprecated
+    def addSpecialCommand(self, name, readcb, writecb=None):
+        return self.add_special_command(name, readcb, writecb)
+
     @property
-    def specialCommands(self):
+    def special_commands(self):
         return self._specialCmds.keys()
 
-    def addComponent(self, name, parent):
+    # @deprecated
+    @property
+    def specialCommands(self):
+        return self.special_commands
+
+    def add_component(self, name, parent):
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept components"
                             "".format(name))
@@ -356,7 +398,11 @@ class scpi(_Logger):
         self._debug("Adding component '{0}' ({1})", name, parent)
         return BuildComponent(name, parent)
 
-    def addChannel(self, name, howMany, parent, startWith=1):
+    @deprecated
+    def addComponent(self, name, parent):
+        return self.add_component(name, parent)
+
+    def add_channel(self, name, howMany, parent, startWith=1):
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept components"
                             "".format(name))
@@ -373,8 +419,12 @@ class scpi(_Logger):
         self._debug("Adding component '{0}' ({1})", name, parent)
         return BuildChannel(name, howMany, parent, startWith)
 
-    def addAttribute(self, name, parent, readcb, writecb=None, default=False,
-                     allowedArgins=None):
+    @deprecated
+    def addChannel(self, name, howMany, parent, startWith=1):
+        return self.add_channel(name, howMany, parent, startWith)
+
+    def add_attribute(self, name, parent, readcb, writecb=None, default=False,
+                      allowedArgins=None):
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept attributes"
                             "".format(name))
@@ -391,8 +441,14 @@ class scpi(_Logger):
         return BuildAttribute(name, parent, readcb, writecb, default,
                               allowedArgins)
 
-    def addCommand(self, FullName, readcb, writecb=None, default=False,
-                   allowedArgins=None):
+    @deprecated
+    def addAttribute(self, name, parent, readcb, writecb=None, default=False,
+                     allowedArgins=None):
+        return self.add_attribute(name, parent, readcb, writecb, default,
+                                  allowedArgins)
+
+    def add_command(self, FullName, readcb, writecb=None, default=False,
+                    allowedArgins=None):
         '''
             adds the command in the structure of [X:Y:]Z composed by Components
             X, Y and as many as ':' separated have. The last one will
@@ -405,7 +461,7 @@ class scpi(_Logger):
             return
         nameParts = FullName.split(':')
         self._debug("Prepare to add command {0}", FullName)
-        tree = self._commandTree
+        tree = self._command_tree
         # preprocessing:
         for i, part in enumerate(nameParts):
             if len(part) == 0:
@@ -414,10 +470,16 @@ class scpi(_Logger):
                                 "".format(i, FullName))
         if len(nameParts) > 1:
             for i, part in enumerate(nameParts[:-1]):
-                self.addComponent(part, tree)
+                self.add_component(part, tree)
                 tree = tree[part]
-        self.addAttribute(nameParts[-1], tree, readcb, writecb, default,
-                          allowedArgins)
+        self.add_attribute(nameParts[-1], tree, readcb, writecb, default,
+                           allowedArgins)
+
+    @deprecated
+    def addCommand(self, FullName, readcb, writecb=None, default=False,
+                   allowedArgins=None):
+        self.add_command(FullName, readcb, writecb, default,
+                         allowedArgins)
 
     # done command introduction area ---
 
@@ -425,12 +487,16 @@ class scpi(_Logger):
 
     @property
     def commands(self):
-        return self._commandTree.keys()
+        return self._command_tree.keys()
 
-    def dataFormat(self, value=None):
+    def data_format(self, value=None):
         if value is None:
-            return self._dataFormat
-        self._dataFormat = value
+            return self._data_format
+        self._data_format = value
+
+    @deprecated
+    def dataFormat(self, value=None):
+        return self._data_format(value)
 
     @property
     def valid_separators(self):
@@ -497,7 +563,7 @@ class scpi(_Logger):
 
     @timeit
     def _process_special_command(self, cmd):
-        if not self._isAccessAllowed():
+        if not self._is_access_allowed():
             return 'NotAllow'
         if cmd.count(':') > 0:  # Not expected in special commands
             return float('NaN')
@@ -505,7 +571,7 @@ class scpi(_Logger):
             is_a_query = True
             cmd = cmd[:-1]
         else:
-            if not self._isWriteAccessAllowed():
+            if not self._is_write_access_allowed():
                 return float('NaN')
             is_a_query = False
             pair = cmd.split(' ', 1)
@@ -521,10 +587,10 @@ class scpi(_Logger):
 
     @timeit
     def _process_normal_command(self, cmd):
-        if not self._isAccessAllowed():
+        if not self._is_access_allowed():
             return 'NotAllow'
         command_words = cmd.split(':')
-        subtree = self._commandTree
+        subtree = self._command_tree
         channel_stack = None  # if there are more than one channel-like element
         last_word = len(command_words)-1
         for i, word in enumerate(command_words):
@@ -543,7 +609,7 @@ class scpi(_Logger):
                     return 'NOK'
             else:
                 try:
-                    word, separator, params = splitParams(word)
+                    word, separator, params = split_params(word)
                     if separator == '?':
                         return self._do_read_operation(
                             subtree, word, channel_stack, params)
@@ -561,14 +627,6 @@ class scpi(_Logger):
                 self._error("command {0} not found", word)
                 return 'NOK'
 
-    def _check4Channels(self, key, channel_stack):
-        if key[-CHNUMSIZE:].isdigit():
-            channel_stack.append(int(key[-CHNUMSIZE:]))
-            self._debug("It has been found that this has channels defined "
-                        "for keyword {0}", key)
-            key = key[:-CHNUMSIZE]
-        return key
-
     @timeit
     def _do_read_operation(self, subtree, word, channel_stack, params):
         answer = subtree[word].read(chlst=channel_stack, params=params)
@@ -580,7 +638,7 @@ class scpi(_Logger):
     def _do_write_operation(self, subtree, word, channel_stack, params):
         # TODO: By default don't provide a readback, but there will be an SCPI
         #       command to return an answer to the write commands
-        if self._isWriteAccessAllowed():
+        if self._is_write_access_allowed():
             answer = subtree[word].write(chlst=channel_stack, value=params)
             if answer is None:
                 # FIXME: it must be configurable
@@ -593,58 +651,115 @@ class scpi(_Logger):
     # input/output area ---
 
     # # lock access area ---
-    def _BookAccess(self):
+    def _book_access(self):
         return self._lock.request()
 
-    def _UnbookAccess(self):
+    @deprecated
+    def _BookAccess(self):
+        return self._book_access()
+
+    def _unbook_access(self):
         return self._lock.release()
 
-    def _isAccessAllowed(self):
+    @deprecated
+    def _UnbookAccess(self):
+        return self._unbook_access()
+
+    def _is_access_allowed(self):
         return self._lock.access()
 
-    def _isAccessBooked(self):
+    @deprecated
+    def _isAccessAllowed(self):
+        return self._is_access_allowed()
+
+    def _is_access_booked(self):
         return self._lock.isLock()
 
-    def _forceAccessRelease(self):
+    @deprecated
+    def _isAccessBooked(self):
+        return self._is_access_booked()
+
+    def _force_access_release(self):
         self._lock._forceRelease()
 
-    def _forceAccessBook(self):
+    @deprecated
+    def _forceAccessRelease(self):
+        return self._force_access_release()
+
+    def _force_access_book(self):
         self._forceAccessRelease()
         return self._BookAccess()
 
-    def _LockOwner(self):
+    @deprecated
+    def _forceAccessBook(self):
+        return self._force_access_book()
+
+    def _lock_owner(self):
         return self._lock.owner
 
-    def _BookWriteAccess(self):
+    @deprecated
+    def _LockOwner(self):
+        return self._lock_owner()
+
+    def _book_write_access(self):
         if self._wlock:
             return self._wlock.request()
         return False
 
-    def _UnbookWriteAccess(self):
+    @deprecated
+    def _BookWriteAccess(self):
+        return self._book_write_access()
+
+    def __unbook_write_access(self):
         if self._wlock:
             return self._wlock.release()
         return False
 
-    def _isWriteAccessAllowed(self):
+    @deprecated
+    def _UnbookWriteAccess(self):
+        return self.__unbook_write_access()
+
+    def _is_write_access_allowed(self):
         if self._wlock:
             return self._wlock.access()
         return True
 
-    def _isWriteAccessBooked(self):
+    @deprecated
+    def _isWriteAccessAllowed(self):
+        return self._is_write_access_allowed()
+
+    def _is_write_access_booked(self):
         if self._wlock:
             return self._wlock.isLock()
         return False
 
-    def _forceWriteAccessRelease(self):
+    @deprecated
+    def _isWriteAccessBooked(self):
+        return self._is_write_access_booked()
+
+    def _force_write_access_release(self):
         if self._wlock:
             self._wlock._forceRelease()
 
-    def _forceWriteAccessBook(self):
+    @deprecated
+    def _forceWriteAccessRelease(self):
+        return self._force_write_access_release()
+
+    def _force_write_access_book(self):
         self._forceAccessRelease()
         return self._BookAccess()
 
-    def _WLockOwner(self):
+    @deprecated
+    def _forceWriteAccessBook(self):
+        return self._force_write_access_book()
+
+    def _wlock_owner(self):
         if self._wlock:
             return self._wlock.owner
         return None
+
+    @deprecated
+    def _WLockOwner(self):
+        return self._wlock_owner()
+
     # lock access area ---
