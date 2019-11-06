@@ -17,7 +17,6 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-
 try:
     from .commands import Component, Attribute, BuildComponent, BuildChannel
     from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
@@ -137,33 +136,48 @@ class scpi(_Logger):
 
     def __summary_timeit(self):
         msg = ""
+        aux = {}
+        strlen = 0
         for klass in timeit_collection:
             for method in timeit_collection[klass]:
-                msg += "\nmethod {0}.{1}".format(klass, method)
-                arr = timeit_collection[klass][method]
-                msg += " {0} calls: min {1:06.6f} max {2:06.6f} " \
-                       "(mean {3:06.6f} stc {4:06.6f})" \
-                       "".format(len(arr), arr.min(), arr.max(),
-                                arr.mean(), arr.std())
+                method_full_name = "{0}.{1}".format(klass, method)
+                if len(method_full_name) > strlen:
+                    strlen = len(method_full_name)
+                value = timeit_collection[klass][method]
+                aux[method_full_name] = value
+        for name in sorted(aux):
+            value = aux[name]
+            msg += "\tmethod {1:{0}} {2:4} calls: min {3:06.6f} " \
+                   "max {4:06.6f} (mean {5:06.6f} std {6:06.6f})\n" \
+                   "".format(strlen, name, len(value), value.min(),
+                             value.max(), value.mean(), value.std())
         if len(msg) > 0:
-            self._warning("timeit summary: {0}", msg)
+            self._warning("timeit summary:\n{0}", msg)
 
     def __summary_deprecated(self):
         msg = ""
+        aux = {}
+        strlen = 0
         for klass in deprecation_collection:
             for method in deprecation_collection[klass]:
-                msg += "\nmethod {0}.{1}".format(klass, method)
+                method_full_name = "{0}.{1}".format(klass, method)
+                if len(method_full_name) > strlen:
+                    strlen = len(method_full_name)
                 value = deprecation_collection[klass][method]
-                msg += " {0}".format(value)
+                aux[method_full_name] = value
+        for name in sorted(aux):
+            value = aux[name]
+            msg += "\tmethod {1:{0}} {2}\n".format(strlen, name, value)
         if len(msg) > 0:
-            self._warning("deprecations summary: {0}", msg)
+            self._warning("deprecations summary:\n{0}", msg)
 
     def __str__(self):
         return str(self.name)
 
     def __repr__(self):
         if 'idn' in self._specialCmds:
-            return "{0}({1})".format(self.name, self._specialCmds['idn'].read())
+            return "{0}({1})".format(
+                self.name, self._specialCmds['idn'].read())
         return "{0}()".format(self.name)
 
     # # communications ares ---
@@ -424,10 +438,9 @@ class scpi(_Logger):
 
     @timeit
     def input(self, line):
+        # TODO: Document the 3 answer codes 'ACK', 'NOK' and 'NotAllow'
+        #  as well as the float('NaN')
         self._debug("Received {0!r} input", line)
-#         if not self._isAccessAllowed():
-#             return ''
-#         start_t = _time()
         line = self._prepare_input_line(line)
         results = []
         for i, command in enumerate(line):
@@ -454,11 +467,9 @@ class scpi(_Logger):
         for res in results:
             answer = "".join("{0}{1};".format(answer, res))
         self._debug("Answer: {0}", answer)
-        # self._debug("Query reply send after {0:g} ms", (_time()-start_t)*1000)
         # FIXME: has the last character to be ';'?
         if len(answer[:-1]):
             return answer[:-1]+'\r\n'
-        # return answer + '\r\n'
         return ''
 
     @timeit
@@ -487,11 +498,7 @@ class scpi(_Logger):
     @timeit
     def _process_special_command(self, cmd):
         if not self._isAccessAllowed():
-            return float('NaN')
-        # start_t = _time()
-        # result = None
-        # FIXME: ugly
-        # self._debug("current special keys: {0}", self._specialCmds.keys())
+            return 'NotAllow'
         if cmd.count(':') > 0:  # Not expected in special commands
             return float('NaN')
         if cmd.endswith('?'):
@@ -514,101 +521,74 @@ class scpi(_Logger):
 
     @timeit
     def _process_normal_command(self, cmd):
-        start_t = _time()
-        answer = 'ACK'
-        keywords = cmd.split(':')
-        tree = self._commandTree
-        channelNum = []
-        for key in keywords:
-            self._debug("processing {0}", key)
-            key, separator, params = splitParams(key)
-            key = self._check4Channels(key, channelNum)
+        if not self._isAccessAllowed():
+            return 'NotAllow'
+        command_words = cmd.split(':')
+        subtree = self._commandTree
+        channel_stack = None  # if there are more than one channel-like element
+        last_word = len(command_words)-1
+        for i, word in enumerate(command_words):
+            if i != last_word:
+                try:
+                    if word[-CHNUMSIZE:].isdigit():
+                        word, number = word[:-CHNUMSIZE], \
+                                       int(word[-CHNUMSIZE:])
+                        if channel_stack is None:
+                            channel_stack = []
+                        channel_stack.append(number)
+                except Exception:
+                    self._error("Not possible to understand word {0!r} "
+                                "(from {1!r})", word, cmd)
+                    print_exc()
+                    return 'NOK'
+            else:
+                try:
+                    word, separator, params = splitParams(word)
+                    if separator == '?':
+                        return self._do_read_operation(
+                            subtree, word, channel_stack, params)
+                    else:
+                        return self._do_write_operation(
+                            subtree, word, channel_stack, params)
+                except Exception:
+                    self._error("Not possible to understand word {0!r} "
+                                "(from {1!r}) separator {2!r}, params {3!r}",
+                                word, cmd, separator, params)
+                    return 'NOK'
             try:
-                nextNode = tree[key]
-                if separator == '?':
-                    if self._isAccessAllowed():
-                        answer = self._doReadOperation(cmd, tree, key,
-                                                       channelNum, params)
-                elif separator == ' ' or type(nextNode) == Attribute:
-                    # with separator next comes the parameters, without it is
-                    # a (write) command without parameters. But in this second
-                    # case it must by an Attribute component or it may confuse
-                    # with intermediate keys of the command.
-                    if self._isAccessAllowed() and \
-                            self._isWriteAccessAllowed():
-                        self._doWriteOperation(cmd, tree, key, channelNum,
-                                               params)
-                else:
-                    tree = nextNode
-            except Exception as e:
-                self._error("Not possible to understand key {0!r} "
-                            "(from {1!r}) separator {2!r}, params {3!r}",
-                            key, cmd, separator, params)
-                if separator == '?':
-                    answer = float('NaN')
-                print_exc()
-                break
-        self._debug("command {0} processed in {1:g} ms ({2!r}",
-                    cmd, (_time()-start_t)*1000, answer)
-        return answer
+                subtree = subtree[word]  # __next__()
+            except Exception:
+                self._error("command {0} not found", word)
+                return 'NOK'
 
-    def _check4Channels(self, key, channelNum):
+    def _check4Channels(self, key, channel_stack):
         if key[-CHNUMSIZE:].isdigit():
-            channelNum.append(int(key[-CHNUMSIZE:]))
+            channel_stack.append(int(key[-CHNUMSIZE:]))
             self._debug("It has been found that this has channels defined "
                         "for keyword {0}", key)
             key = key[:-CHNUMSIZE]
         return key
 
-    def _doReadOperation(self, cmd, tree, key, channelNum, params):
-        try:
-            self._debug("Leaf of the tree {0!r}{1}", key,
-                        " (with params={0})".format(params if params else ""))
-            if len(channelNum) > 0:
-                self._debug("do read with channel")
-                if params:
-                    answer = tree[key].read(chlst=channelNum,
-                                            params=params)
-                else:
-                    answer = tree[key].read(chlst=channelNum)
-            else:
-                if params:
-                    answer = tree[key].read(params=params)
-                else:
-                    answer = tree[key].read()
-            # With the support for list readings (its conversion
-            # to '#NMMMMMMMMM...' stream:
-            # TODO: This will require a DataFormat feature to
-            #       pack the data in bytes, shorts or longs.
-            if answer is None:
-                answer = float('NaN')
-        except Exception as e:
-            self._warning("Exception reading '{0}': {1}", cmd, e)
+    @timeit
+    def _do_read_operation(self, subtree, word, channel_stack, params):
+        answer = subtree[word].read(chlst=channel_stack, params=params)
+        if answer is None:
             answer = float('NaN')
-            print_exc()
         return answer
 
-    def _doWriteOperation(self, cmd, tree, key, channelNum, params):
+    @timeit
+    def _do_write_operation(self, subtree, word, channel_stack, params):
         # TODO: By default don't provide a readback, but there will be an SCPI
         #       command to return an answer to the write commands
-        try:
-            self._debug("Leaf of the tree {0!r} ({1!r})", key, params)
-            if len(channelNum) > 0:
-                self._debug("do write (with channel {0}) {1}: {2}",
-                            channelNum, key, params)
-                answer = tree[key].write(chlst=channelNum, value=params)
-#                 if answer is None:
-#                     answer = tree[key].read(channelNum)
-            else:
-                self._debug("do write {0}: {1}", key, params)
-                answer = tree[key].write(value=params)
-#                 if answer is None:
-#                     answer = tree[key].read()
-        except Exception as e:
-            self._warning("Exception writing '{0}': {1}", cmd, e)
-            answer = None  # float('NaN')
-            print_exc()
-        return answer
+        if self._isWriteAccessAllowed():
+            answer = subtree[word].write(chlst=channel_stack, value=params)
+            if answer is None:
+                # FIXME: it must be configurable
+                #  if there have to be an answer
+                return 'ACK'
+            return answer
+        else:
+            return 'NotAllow'
 
     # input/output area ---
 
