@@ -122,11 +122,24 @@ def _interTestWait():
     _wait(stepTime)
 
 
-def _afterTestWait():
-    _wait(stepTime*10)
+def _afterTestWait(pause):
+    if pause:
+        msg = "Press enter to continue... (Ctrl+c to break)"
+        try:
+            raw_input(msg)  # py2
+        except NameError:
+            try:
+                input(msg)  # py3
+            except KeyboardInterrupt:
+                return False
+        except KeyboardInterrupt:
+            return False
+    else:
+        _wait(stepTime*10)
+    return True
 
 
-def testScpi(debug):
+def testScpi(debug, pause):
     start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
@@ -151,7 +164,8 @@ def testScpi(debug):
             results.append(result)
             tag, value = msg.rsplit(' ', 1)
             resultMsgs.append([tag, value])
-            _afterTestWait()
+            if _afterTestWait(pause) is False:
+                break
     if all(results):
         _printHeader("All tests passed: everything OK (%g s)"
                      % (_time()-start_t))
@@ -776,8 +790,8 @@ def _cutMultipleAnswer(answerStr):
             headerSize = int(answerStr[1])
             bodySize = int(answerStr[2:headerSize+2])
             bodyBlock = answerStr[headerSize+2:bodySize+headerSize+2]
-            print("with a headerSize of %d and a bodySize of %s, %d elements "
-                  "in the body" % (headerSize, bodySize, len(bodyBlock)))
+            # print("with a headerSize of %d and a bodySize of %s, %d elements "
+            #       "in the body" % (headerSize, bodySize, len(bodyBlock)))
             answerStr = answerStr[2+headerSize+bodySize:]
             if len(answerStr) > 0:
                 answerStr = answerStr[1:]
@@ -1046,11 +1060,13 @@ def main():
     parser = OptionParser()
     parser.add_option('', "--debug", action="store_true", default=False,
                       help="Set the debug flag")
+    parser.add_option('', "--pause", action="store_true", default=False,
+                      help="Pause after each of the tests")
     (options, args) = parser.parse_args()
     scpi_timeit_collection(True)
     for test in [testScpi]:
         try:
-            test(options.debug)
+            test(options.debug, options.pause)
         except Exception as e:
             msg = "Test failed!"
             border = "*"*len(msg)
