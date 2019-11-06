@@ -90,7 +90,8 @@ class DictKey(_Logger, str):
         value = str(value)
         super(DictKey, self).__init__(*args, **kargs)
         if not value.isalpha():
-            raise NameError("key shall be strictly alphabetic")
+            raise NameError("key shall be strictly alphabetic ({0!r})"
+                            "".format(value))
         self._name = value
         if 0 < len(self._name) < MINIMUMKEYLENGHT:
             self.minimum = len(value)
