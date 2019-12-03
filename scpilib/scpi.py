@@ -374,9 +374,10 @@ class scpi(_Logger):
             name = name.lower()
             if name.startswith('*'):
                 name = name[1:]
-            if readcb is None:
-                raise KeyError(
-                    "Refusing command {0}: it looks doesn't have read callback")
+            # if readcb is None:
+            #     raise KeyError(
+            #         "Refusing command {0}: it looks doesn't have read callback"
+            #         "".format(name))
             if name.endswith('?'):
                 if writecb is not None:
                     raise KeyError(
