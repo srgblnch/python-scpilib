@@ -20,7 +20,7 @@
 try:
     from .logger import Logger as _Logger
     from .logger import deprecated
-except ValueError:
+except Exception:
     from logger import Logger as _Logger
     from logger import deprecated
 from gc import collect as _gccollect

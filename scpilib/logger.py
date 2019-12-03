@@ -21,7 +21,7 @@
 from __future__ import print_function
 try:
     import __builtin__
-except ValueError:
+except Exception:
     # Python 3
     import builtins as __builtin__
 from datetime import datetime as _datetime
@@ -182,7 +182,7 @@ class Logger(object):
 
     def __init__(self, name="Logger", loggerName=None, log2file=False,
                  debug=False, *args, **kwargs):
-        super(Logger, self).__init__(*args, **kwargs)
+        super(Logger, self).__init__()
         self._name = name
         self.__debugFlag = None
         self.__debuglevel = _logger_NOTSET

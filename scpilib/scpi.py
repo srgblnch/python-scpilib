@@ -27,7 +27,7 @@ try:
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
-except ValueError:
+except Exception:
     from commands import Component, Attribute, BuildComponent, BuildChannel
     from commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
     from logger import Logger as _Logger

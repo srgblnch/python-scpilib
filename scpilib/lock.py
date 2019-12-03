@@ -22,7 +22,7 @@ from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 try:
     from .logger import Logger as _Logger
-except:
+except Exception:
     from logger import Logger as _Logger
 from threading import currentThread as _currentThread
 
