@@ -102,7 +102,7 @@ class scpi(_Logger):
         self._command_tree = command_tree or Component()
         self._command_tree.logEnable(self.logState())
         self._command_tree.logLevel(self.logGetLevel())
-        self._specialCmds = specialCommands or {}
+        self._special_cmds = specialCommands or {}
         self._debug("Special commands: {0!r}", specialCommands)
         self._debug("Given commands: {0!r}", self._command_tree)
         self._local = local
@@ -144,14 +144,24 @@ class scpi(_Logger):
         return str(self.name)
 
     def __repr__(self):
-        if 'idn' in self._specialCmds:
+        if 'idn' in self._special_cmds:
             return "{0}({1})".format(
-                self.name, self._specialCmds['idn'].read())
+                self.name, self._special_cmds['idn'].read())
         return "{0}()".format(self.name)
 
     @property
     def command_tree(self):
         return self._command_tree
+
+    @deprecated
+    @property
+    def _commandTree(self):
+        return self._command_tree
+
+    @deprecated
+    @property
+    def _specialCmds(self):
+        return self._special_cmds
 
     def __summary_timeit(self):
         msg = ""
@@ -360,20 +370,31 @@ class scpi(_Logger):
             Adds a command '*%s'%(name). If finishes with a '?' mark it will
             be called the readcb method, else will be the writecb method.
         '''
-        name = name.lower()
-        if name.startswith('*'):
-            name = name[1:]
-        if name.endswith('?'):
-            if writecb is not None:
-                raise KeyError("Refusing command {0}: looks readonly but has "
-                               "a query character at the end.".format(name))
-            name = name[:-1]
-        if not name.isalpha():
-            raise NameError("Not supported other than alphabetical characters")
-        if self._specialCmds is None:
-            self._specialCmds = {}
-        self._debug("Adding special command '*{0}'".format(name))
-        BuildSpecialCmd(name, self._specialCmds, readcb, writecb)
+        try:
+            name = name.lower()
+            if name.startswith('*'):
+                name = name[1:]
+            if readcb is None:
+                raise KeyError(
+                    "Refusing command {0}: it looks doesn't have read callback")
+            if name.endswith('?'):
+                if writecb is not None:
+                    raise KeyError(
+                        "Refusing command {0}: looks readonly but has a query "
+                        "character at the end.".format(name))
+                name = name[:-1]
+            if not name.isalpha():
+                raise NameError(
+                    "Not supported other than alphabetical characters")
+            if self._special_cmds is None:
+                self._special_cmds = {}
+            self._debug("Adding special command '*{0}'".format(name))
+            BuildSpecialCmd(name, self._special_cmds, readcb, writecb)
+        except (KeyError, NameError) as exc:
+            raise exc  # re-raise
+        except Exception as exc:
+            self._error("Exception while adding special command '*{0}': {1}"
+                        "".format(name, exc))
 
     @deprecated
     def addSpecialCommand(self, name, readcb, writecb=None):
@@ -381,7 +402,7 @@ class scpi(_Logger):
 
     @property
     def special_commands(self):
-        return self._specialCmds.keys()
+        return self._special_cmds.keys()
 
     # @deprecated
     @property
@@ -579,10 +600,11 @@ class scpi(_Logger):
                 cmd, args = pair, None  # write without params
             else:
                 cmd, args = pair
-        if cmd in self._specialCmds.keys():
+        cmd = cmd.lower()
+        if cmd in self._special_cmds.keys():
             if is_a_query:
-                return self._specialCmds[cmd].read()
-            return self._specialCmds[cmd].write(args)
+                return self._special_cmds[cmd].read()
+            return self._special_cmds[cmd].write(args)
         return float('NaN')
 
     @timeit
