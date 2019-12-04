@@ -74,7 +74,32 @@ CHNUMSIZE = 2
 
 
 def getId(name, minimum):
-    return sum([ord(v) << (8*i) for i, v in enumerate(name[:minimum])])
+    """
+Converts an string to a reproducible numeric number. Strings that starts with
+the same minimum value will collide with the same code.
+
+It is case insensitive:
+hex(getId("Start", 4))
+ '0x73746172'
+hex(getId("STARt", 4))
+ '0x73746172'
+
+Two words have different code:
+hex(getId("Stop", 4))
+ '0x73746f70'
+
+Only if the minimum doesn't force a collision:
+hex(getId("Stop", 2))
+ '0x7374'
+hex(getId("Start", 2))
+ '0x7374'
+hex(getId("INETfour", 4))
+ '0x696e6574'
+hex(getId("INETsix", 4))
+ '0x696e6574'
+    """
+    return sum([ord(v) << (8*(minimum-i-1))
+                for i, v in enumerate(name.lower()[:minimum])])
 
 
 class DictKey(_Logger, str):
@@ -135,8 +160,8 @@ class DictKey(_Logger, str):
             id = getId(other, self._minimum)
         else:
             id = int(DictKey(other))
-        self._debug("({1}) compare with '{2}' ({3})"
-                    "".format(self, hex(self.__id), other, hex(id)))
+        # self._debug("({1}) compare with '{2}' ({3})"
+        #             "".format(self, hex(self.__id), other, hex(id)))
         return self.__id == id
 
     def __ne__(self, other):  # => self != other
@@ -500,13 +525,16 @@ class Component(_Logger, dict):
         if not isinstance(key, DictKey):
             key = DictKey(key)
         try:
+            # keys = [hex(k) for k in self._idxs.keys()]
             if int(key) in self._idxs.keys():
                 name = self._idxs[int(key)]
                 value = dict.__getitem__(self, name)
+                # self._debug("getitem key {0} ({1}) in keys() {2}"
+                #             "".format(key, hex(int(key)), keys))
                 return value
-            else:
-                self._debug("getitem key {0} ({1}) not in keys()"
-                            "".format(key, hex(int(key))))
+            # else:
+            #     self._debug("getitem key {0} ({1}) NOT in keys() {2}"
+            #                 "".format(key, hex(int(key)), keys))
         except Exception as exc:
             self._debug("Exception in __getitem__({0} ({1}))"
                         "".format(key, hex(int(key))))
@@ -528,8 +556,9 @@ class Component(_Logger, dict):
         self._idxs[int(key)] = key
         dict.__setitem__(self, key, value)
         value.parent = self
-        self._debug("setitem {0} ({1}) with {2}"
-                    "".format(key, hex(int(key)), value))
+        keys = [hex(k) for k in self._idxs.keys()]
+        # self._debug("setitem {0} ({1}) with {2} together with {3}"
+        #             "".format(key, hex(int(key)), value, keys))
 
     def pop(self, key):
         if not isinstance(key, DictKey):

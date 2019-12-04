@@ -375,14 +375,14 @@ class scpi(_Logger):
             if name.startswith('*'):
                 name = name[1:]
             # if readcb is None:
-            #     raise KeyError(
-            #         "Refusing command {0}: it looks doesn't have read callback"
-            #         "".format(name))
+            #     exc = "Refusing command {0}: it looks doesn't have read " \
+            #           "callback".format(name)
+            #     raise KeyError(exc)
             if name.endswith('?'):
                 if writecb is not None:
-                    raise KeyError(
-                        "Refusing command {0}: looks readonly but has a query "
-                        "character at the end.".format(name))
+                    exc = "Refusing command {0}: looks readonly but has a " \
+                          "query character at the end.".format(name)
+                    raise KeyError(exc)
                 name = name[:-1]
             if not name.isalpha():
                 raise NameError(
