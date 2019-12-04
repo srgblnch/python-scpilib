@@ -75,33 +75,38 @@ MINIMUMKEYLENGHT = 4
 CHNUMSIZE = 2
 
 
-def getId(name, minimum):
+def get_id(name, minimum):
     """
 Converts an string to a reproducible numeric number. Strings that starts with
 the same minimum value will collide with the same code.
 
 It is case insensitive:
-hex(getId("Start", 4))
+hex(get_id("Start", 4))
  '0x73746172'
-hex(getId("STARt", 4))
+hex(get_id("STARt", 4))
  '0x73746172'
 
 Two words have different code:
-hex(getId("Stop", 4))
+hex(get_id("Stop", 4))
  '0x73746f70'
 
 Only if the minimum doesn't force a collision:
-hex(getId("Stop", 2))
+hex(get_id("Stop", 2))
  '0x7374'
-hex(getId("Start", 2))
+hex(get_id("Start", 2))
  '0x7374'
-hex(getId("INETfour", 4))
+hex(get_id("INETfour", 4))
  '0x696e6574'
-hex(getId("INETsix", 4))
+hex(get_id("INETsix", 4))
  '0x696e6574'
     """
     return sum([ord(v) << (8*(minimum-i-1))
                 for i, v in enumerate(name.lower()[:minimum])])
+
+
+@deprecated
+def getId(*args, **kwargs):
+    return get_id(*args, **kwargs)
 
 
 class DictKey(_Logger, str):
@@ -125,7 +130,7 @@ class DictKey(_Logger, str):
         if len(self._name) < self._minimum:
             raise NameError("value string shall be almost the minimum size")
         lower = self._name.lower()
-        self.__id = getId(self._name.lower(), self._minimum)
+        self.__id = get_id(self._name.lower(), self._minimum)
         # this identifier uses only the minimum substring and depends on the
         # character positions, so an anagrama will produce a different one,
         # and it will provide a numeric way to compare keys
@@ -159,7 +164,7 @@ class DictKey(_Logger, str):
         if isinstance(other, DictKey):
             id = int(other)
         elif isinstance(other, str):
-            id = getId(other, self._minimum)
+            id = get_id(other, self._minimum)
         else:
             id = int(DictKey(other))
         # self._debug("({1}) compare with '{2}' ({3})"
