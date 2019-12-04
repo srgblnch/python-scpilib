@@ -34,9 +34,11 @@ __license__ = "GPLv3+"
 try:
     from .logger import Logger as _Logger
     from .logger import timeit
+    from .logger import deprecated
 except Exception:
     from logger import Logger as _Logger
     from logger import timeit
+    from logger import deprecated
 try:
     from numpy import ndarray as _np_ndarray
     from numpy import float16 as _np_float16
@@ -185,9 +187,9 @@ class Attribute(DictKey):
     _parent = None
     _read_cb = None
     _write_cb = None
-    _hasChannels = False
-    _channelTree = None
-    _allowedArgins = None
+    _has_channels = False
+    _channel_tree = None
+    _allowed_argins = None
 
     def __init__(self, *args, **kargs):
         super(Attribute, self).__init__(*args, **kargs)
@@ -221,41 +223,80 @@ class Attribute(DictKey):
             self._parent = value
 
     @property
-    def hasChannels(self):
-        return self._hasChannels
+    def has_channels(self):
+        return self._has_channels
 
     @property
-    def allowedArgins(self):
-        return self._allowedArgins
+    @deprecated
+    def hasChannels(self):
+        return self.has_channels
 
-    @allowedArgins.setter
-    def allowedArgins(self, value):
+    @property
+    @deprecated
+    def _hasChannels(self):
+        return self._has_channels
+
+    @property
+    def allowed_argins(self):
+        return self._allowed_argins
+
+
+    @property
+    @deprecated
+    def allowedArgins(self):
+        return self.allowed_argins
+
+    @property
+    @deprecated
+    def _allowedArgins(self):
+        return self._allowed_argins
+
+    @allowed_argins.setter
+    def allowed_argins(self, value):
         # TODO: also than an specific set of values, provide a way to restrict
         #       argins in a bounded region. Like a range (or ranges) of values.
         if value is not None and type(value) is not list:
             raise TypeError("Allowed argins expects a list")
-        self._allowedArgins = []
+        self._allowed_argins = []
         for element in value:
-            self._allowedArgins.append(str(element))
+            self._allowed_argins.append(str(element))
         # TODO: those strings shall also follow the key length feature
         #       if the length string is at least the minimum.
         #       This is like 'FALSe' == 'FALS' in scpi
         #       replace 'str' by 'DictKey'
 
-    def checkChannels(self):
-        if self.parent is not None and self.parent.hasChannels:
-            self._hasChannels = True
-            self._channelTree = self.getChannels()
+    @allowedArgins.setter
+    @deprecated
+    def allowedArgins(self, value):
+        self.allowed_argins = value
+
+    @_allowedArgins.setter
+    @deprecated
+    def _allowedArgins(self, value):
+        self._allowed_argins = value
+
+    def check_channels(self):
+        if self.parent is not None and self.parent.has_channels:
+            self._has_channels = True
+            self._channel_tree = self.get_channels()
             self._debug("{0}: Channels found for {1} component: {2}",
                         self.name, self.parent.name,
-                        ["%s" % x.name for x in self._channelTree])
+                        ["%s" % x.name for x in self._channel_tree])
         else:
             self._debug("{0}: No channels found", self.name)
 
-    def getChannels(self):
-        if self.parent is not None and self.parent.hasChannels:
-            return self.parent.getChannels()
+    @deprecated
+    def checkChannels(self):
+        return self.check_channels()
+
+    def get_channels(self):
+        if self.parent is not None and self.parent.has_channels:
+            return self.parent.get_channels()
         return None
+
+    @deprecated
+    def getChannels(self):
+        return self.get_channels()
 
     @property
     def read_cb(self):
@@ -266,21 +307,21 @@ class Attribute(DictKey):
         self._read_cb = function
 
     @timeit
-    def read(self, chlst=None, params=None):
+    def read(self, ch_lst=None, params=None):
         if self._read_cb is not None:
-            if self.hasChannels and chlst is not None:
+            if self.has_channels and ch_lst is not None:
                 if params:
-                    retValue = self._callbackChannels(self._read_cb, chlst,
-                                                      params)
+                    ret_value = self._callback_channels(
+                        self._read_cb, ch_lst, params)
                 else:
-                    retValue = self._callbackChannels(self._read_cb, chlst)
+                    ret_value = self._callback_channels(self._read_cb, ch_lst)
             else:
                 if params:
-                    retValue = self._read_cb(params)
+                    ret_value = self._read_cb(params)
                 else:
-                    retValue = self._read_cb()
-                self._debug("Attribute {0} read: {1}", self.name, retValue)
-            return self._check_array(retValue)
+                    ret_value = self._read_cb()
+                self._debug("Attribute {0} read: {1}", self.name, ret_value)
+            return self._check_array(ret_value)
 
     def _check_array(self, argin):
         # if answer is a list, manipulate it to follow the rule
@@ -304,7 +345,7 @@ class Attribute(DictKey):
         return argin
 
     def _convert_array(self, argin):
-        root = self._getRootComponent()
+        root = self._get_root_component()
         data_format = root['dataFormat'].read()
         # flat the array, dimensions shall be known by the receiver
         flattened = argin.flatten()
@@ -324,21 +365,25 @@ class Attribute(DictKey):
         #     pass
         else:
             raise NotImplementedError("Unexpected data format {0} codification"
-                                      "".format(dataFormat))
+                                      "".format(data_format))
         # prepare the header
-        lenght = str(len(data))
-        firstField = str(len(lenght))
-        if len(firstField) > 1:
-            self._error("A {0} array cannot be codified", lenght)
+        length = str(len(data))
+        first_field = str(len(lenght))
+        if len(first_field) > 1:
+            self._error("A {0} array cannot be codified", length)
             return float("NaN")
-        header = "#%1s%s" % (firstField, lenght)
+        header = "#%1s%s" % (first_field, length)
         return header + data
 
-    def _getRootComponent(self):
+    def _get_root_component(self):
         candidate = self._parent
         while candidate._parent is not None:
             candidate = candidate._parent
         return candidate
+
+    @deprecated
+    def _getRootComponent(self):
+        return self._get_root_component()
 
     @property
     def write_cb(self):
@@ -349,71 +394,84 @@ class Attribute(DictKey):
         self._write_cb = function
 
     @timeit
-    def write(self, chlst=None, value=None):
-        self._debug("{0}.write(ch={1}, value={2})", self.name, chlst, value)
+    def write(self, ch_lst=None, value=None):
+        self._debug("{0}.write(ch={1}, value={2})", self.name, ch_lst, value)
         if self._write_cb is not None:
-            if self.allowedArgins is not None and \
-                    value not in self.allowedArgins:
+            if self.allowed_argins is not None and \
+                    value not in self.allowed_argins:
                 raise ValueError("Not allowed to write {0}, only {1} are "
-                                 "accepted".format(value, self.allowedArgins))
-            if self.hasChannels and chlst is not None:
-                retValue = self._callbackChannels(self._write_cb, chlst, value)
+                                 "accepted".format(value, self.allowed_argins))
+            if self.has_channels and ch_lst is not None:
+                ret_value = self._callback_channels(
+                    self._write_cb, ch_lst, value)
             else:
-                retValue = self._write_cb(value)
+                ret_value = self._write_cb(value)
                 self._debug("Attribute {0} write {1}: {2}",
-                            self.name, value, retValue)
-            return retValue
+                            self.name, value, ret_value)
+            return ret_value
 
-    def _callbackChannels(self, method_cb, chlst, value=None):
-        self._checkAllChannelsAreWithinBoundaries(chlst)
-        if len(chlst) == 1:
-            ch = chlst[0]
+    def _callback_channels(self, method_cb, ch_lst, value=None):
+        self._check_all_channels_are_within_boundaries(ch_lst)
+        if len(ch_lst) == 1:
+            ch = ch_lst[0]
             if value is None:
-                retValue = method_cb(ch)
+                ret_value = method_cb(ch)
                 self._debug("Attribute {0} read from channel {1:d}: {2}",
-                            self.name, ch, retValue)
+                            self.name, ch, ret_value)
             else:
-                retValue = method_cb(ch, value)
+                ret_value = method_cb(ch, value)
                 self._debug("Attribute {0} write {1} in channel {2:d}: {3}",
-                            self.name, value, ch, retValue)
+                            self.name, value, ch, ret_value)
         else:
             if value is None:
-                retValue = method_cb(chlst)
+                ret_value = method_cb(ch_lst)
                 self._debug("Attribute {0} read for channel set {1}: {2}",
-                            self.name, chlst, retValue)
+                            self.name, ch_lst, ret_value)
             else:
-                retValue = method_cb(chlst, value)
+                ret_value = method_cb(ch_lst, value)
                 self._debug("Attribute {0} write {1} for channel set {2}: {3}",
-                            self.name, value, chlst, retValue)
-        return retValue
+                            self.name, value, ch_lst, ret_value)
+        return ret_value
 
-    def _checkAllChannelsAreWithinBoundaries(self, chlst):
-        if len(self._channelTree) != len(chlst):
+    @deprecated
+    def _callbackChannels(self, *args, **kwargs):
+        return self._callback_channels(*args, **kwargs)
+
+    def _check_all_channels_are_within_boundaries(self, ch_lst):
+        if len(self._channel_tree) != len(ch_lst):
             raise AssertionError("Given channel list hasn't the same number "
                                  "of elements than the known in the tree")
-        for i, chRequested in enumerate(chlst):
-            lowerBound = self._channelTree[i].firstChannel
-            upperBound = lowerBound + self._channelTree[i].howManyChannels
-            if chRequested < lowerBound:
+        for i, ch_requested in enumerate(ch_lst):
+            lower_bound = self._channel_tree[i].first_channel
+            upper_bound = lower_bound + self._channel_tree[i].how_many_channels
+            if ch_requested < lower_bound:
                 raise AssertionError("below the bounds")
-            elif chRequested >= upperBound:
+            elif ch_requested >= upper_bound:
                 raise AssertionError("above the bounds")
 
+    @deprecated
+    def _checkAllChannelsAreWithinBoundaries(self, *args):
+        return _check_all_channels_are_within_boundaries(*args)
 
-def BuildAttribute(name, parent, readcb=None, writecb=None, default=False,
-                   allowedArgins=None):
+
+def build_attribute(name, parent, read_cb=None, write_cb=None, default=False,
+                    allowed_argins=None):
     attr = Attribute(name)
     attr.parent = parent
     if parent is not None and name is not None:
         parent[name] = attr
-    attr.read_cb = readcb
-    attr.write_cb = writecb
+    attr.read_cb = read_cb
+    attr.write_cb = write_cb
     if default:
         parent.default = name
-    if allowedArgins:
-        attr.allowedArgins = allowedArgins
-    attr.checkChannels()
+    if allowed_argins:
+        attr.allowed_argins = allowed_argins
+    attr.check_channels()
     return attr
+
+
+def BuildAttribute(*args, **kwargs):
+    return build_attribute(*args, **kwargs)
 
 
 class Component(_Logger, dict):
@@ -424,10 +482,10 @@ class Component(_Logger, dict):
     '''
 
     _parent = None
-    _defaultKey = None
-    _howMany = None
-    _hasChannels = False
-    _channelTree = None
+    _default_key = None
+    _how_many = None
+    _has_channels = False
+    _channel_tree = None
     _idxs = None
 
     def __init__(self, *args, **kargs):
@@ -454,16 +512,16 @@ class Component(_Logger, dict):
                 repr = "".join("{0}\n{1}{2!r}".format(repr, indentation, name))
             else:
                 if item.default is not None:
-                    isDefault = " (default {0!r}) ".format(item.default)
+                    is_default = " (default {0!r}) ".format(item.default)
                 else:
-                    isDefault = ""
+                    is_default = ""
                 if isinstance(item, Channel):
-                    hasChannels = "NN"
+                    has_channels = "NN"
                 else:
-                    hasChannels = ""
+                    has_channels = ""
                 repr = "".join("{0}\n{1}{2!r}{3}:{4}{5!r}"
-                               "".format(repr, indentation, name, hasChannels,
-                                         isDefault, item))
+                               "".format(repr, indentation, name, has_channels,
+                                         is_default, item))
         return repr
 
     @property
@@ -483,16 +541,41 @@ class Component(_Logger, dict):
 
     @property
     def default(self):
-        return self._defaultKey
+        return self._default_key
 
     @default.setter
     def default(self, value):
         if value in self.keys():
-            self._defaultKey = value
+            self._default_key = value
 
     @property
+    @deprecated
+    def _defaultKey(self):
+        return self._default_key
+
+    @_defaultKey.setter
+    @deprecated
+    def _defaultKey(self, value):
+        self._default_key = value
+
+    @property
+    def has_channels(self):
+        return self._has_channels
+
+    @property
+    @deprecated
     def hasChannels(self):
-        return self._hasChannels
+        return self.has_channels
+
+    @property
+    @deprecated
+    def _hasChannels(self):
+        return self._has_channels
+
+    @property
+    @deprecated
+    def _channelTree(self):
+        return self._channel_tree
 
     # TODO: as any Attribute object will search for its channels in its parent
     #       component, as well as the components will search for channels also
@@ -501,20 +584,28 @@ class Component(_Logger, dict):
     #         its tree of the above channels already discovered.
     #       Right now this is following the same path over and over again.
 
-    def checkChannels(self):
-        if self.parent is not None and self.parent.hasChannels:
-            self._hasChannels = True
-            self._channelTree = self.getChannels()
+    def check_channels(self):
+        if self.parent is not None and self.parent.has_channels:
+            self._has_channels = True
+            self._channel_tree = self.get_channels()
             self._debug("{0}: Channels found for {1} component: {2}",
                         self.name, self.parent.name,
-                        ["%s" % x.name for x in self._channelTree])
+                        ["%s" % x.name for x in self._channel_tree])
         else:
             self._debug("{0}: No lower level channels found", self.name)
 
-    def getChannels(self):
-        if self.parent is not None and self.parent.hasChannels:
-            return self.parent.getChannels()
+    @deprecated
+    def checkChannels(self):
+        return self.check_channels()
+
+    def get_channels(self):
+        if self.parent is not None and self.parent.has_channels:
+            return self.parent.get_channels()
         return None
+
+    @deprecated
+    def getChannels(self):
+        return self.get_channels()
 
     # @timeit
     def __getitem__(self, key):
@@ -573,25 +664,30 @@ class Component(_Logger, dict):
         dict.clear(self)
 
     @timeit
-    def read(self, chlst=None, params=None):
-        if self._defaultKey:
-            return self.__getitem__(self._defaultKey).read(chlst, params)
+    def read(self, ch_lst=None, params=None):
+        if self._default_key:
+            return self.__getitem__(self._default_key).read(ch_lst, params)
         return float('NaN')
 
     @timeit
-    def write(self, chlst=None, value=None):
-        if self._defaultKey:
-            return self.__getitem__(self._defaultKey).write(chlst, value)
+    def write(self, ch_lst=None, value=None):
+        if self._default_key:
+            return self.__getitem__(self._default_key).write(ch_lst, value)
         return float('NaN')
 
 
-def BuildComponent(name=None, parent=None):
+def build_component(name=None, parent=None):
     component = Component(name=name)
     component.parent = parent
     if parent is not None and name is not None:
         parent[name] = component
-    component.checkChannels()
+    component.check_channels()
     return component
+
+
+@deprecated
+def BuildComponent(*args, **kwargs):
+    return build_component(*args, **kwargs)
 
 
 class SpecialCommand(Component):
@@ -653,7 +749,7 @@ class SpecialCommand(Component):
         return float("NaN")
 
 
-def BuildSpecialCmd(name, parent, readcb, writecb=None):
+def build_special_cmd(name, parent, readcb, writecb=None):
     special = SpecialCommand(name)
     special.readcb = readcb
     special.writecb = writecb
@@ -661,37 +757,61 @@ def BuildSpecialCmd(name, parent, readcb, writecb=None):
     return special
 
 
+@deprecated
+def BuildSpecialCmd(*args, **kwargs):
+    return BuildSpecialCmd(*args, **kwargs)
+
+
 class Channel(Component):
-    def __init__(self, howMany=None, startWith=1, *args, **kargs):
+    def __init__(self, how_many=None, start_with=1, *args, **kargs):
         super(Channel, self).__init__(*args, **kargs)
-        if len(str(howMany).zfill(2)) > CHNUMSIZE:
+        if len(str(how_many).zfill(2)) > CHNUMSIZE:
             raise ValueError("The number of channels can not exceed "
                              "{0:d} decimal digits".format(CHNUMSIZE))
-        self._howMany = howMany
-        self._startWith = startWith
-        self._hasChannels = True
+        self._how_many = how_many
+        self._start_with = start_with
+        self._has_channels = True
         self._debug("Build a Channel object {0}", self.name)
 
-    def getChannels(self):
-        if self.parent is not None and self.parent.hasChannels:
-            parentChannels = self.parent.getChannels()
-            if parentChannels is not None:
-                return parentChannels + [self]
+    def get_channels(self):
+        if self.parent is not None and self.parent.has_channels:
+            parent_channels = self.parent.get_channels()
+            if parent_channels is not None:
+                return parent_channels + [self]
         return [self]
 
+    @deprecated
+    def getChannels(self):
+        return self.get_channels()
+
     @property
+    def how_many_channels(self):
+        return self._how_many
+
+    @property
+    @deprecated
     def howManyChannels(self):
-        return self._howMany
+        return self.how_many_channels
 
     @property
+    def first_channel(self):
+        return self._start_with
+
+    @property
+    @deprecated
     def firstChannel(self):
-        return self._startWith
+        return self.first_channel
 
 
-def BuildChannel(name=None, howMany=None, parent=None, startWith=1):
-    channel = Channel(name=name, howMany=howMany, startWith=startWith)
+def build_channel(name=None, how_many=None, parent=None, start_with=1):
+    channel = Channel(name=name, how_many=how_many, start_with=start_with)
     channel.parent = parent
     if parent is not None and name is not None:
         parent[name] = channel
-    channel.checkChannels()
+    channel.check_channels()
     return channel
+
+
+@deprecated
+def BuildChannel(*args, **kwargs):
+    return build_channel(*args, **kwargs)

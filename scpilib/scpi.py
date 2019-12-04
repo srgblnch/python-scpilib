@@ -18,8 +18,8 @@
 # ##### END GPL LICENSE BLOCK #####
 
 try:
-    from .commands import Component, Attribute, BuildComponent, BuildChannel
-    from .commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
+    from .commands import Component, Attribute, build_component, build_channel
+    from .commands import build_attribute, build_special_cmd, CHNUMSIZE
     from .logger import Logger as _Logger
     from .logger import trace, scpi_debug
     from .logger import timeit, timeit_collection
@@ -28,8 +28,8 @@ try:
     from .lock import Locker as _Locker
     from .version import version as _version
 except Exception:
-    from commands import Component, Attribute, BuildComponent, BuildChannel
-    from commands import BuildAttribute, BuildSpecialCmd, CHNUMSIZE
+    from commands import Component, Attribute, build_component, build_channel
+    from commands import build_attribute, build_special_cmd, CHNUMSIZE
     from logger import Logger as _Logger
     from logger import trace, scpi_debug
     from logger import timeit, timeit_collection
@@ -390,7 +390,7 @@ class scpi(_Logger):
             if self._special_cmds is None:
                 self._special_cmds = {}
             self._debug("Adding special command '*{0}'".format(name))
-            BuildSpecialCmd(name, self._special_cmds, readcb, writecb)
+            build_special_cmd(name, self._special_cmds, readcb, writecb)
         except (KeyError, NameError) as exc:
             raise exc  # re-raise
         except Exception as exc:
@@ -418,7 +418,7 @@ class scpi(_Logger):
             # self._warning("component '%s' already exist" % (name))
             return parent[name]
         self._debug("Adding component '{0}' ({1})", name, parent)
-        return BuildComponent(name, parent)
+        return build_component(name, parent)
 
     @deprecated
     def addComponent(self, name, parent):
@@ -439,7 +439,7 @@ class scpi(_Logger):
             # this is more like a get
             return parent[name]
         self._debug("Adding component '{0}' ({1})", name, parent)
-        return BuildChannel(name, howMany, parent, startWith)
+        return build_channel(name, howMany, parent, startWith)
 
     @deprecated
     def addChannel(self, name, howMany, parent, startWith=1):
@@ -460,7 +460,7 @@ class scpi(_Logger):
                                "parameters")
             return parent[name]
         self._debug("Adding attribute '{0}' ({1})", name, parent)
-        return BuildAttribute(name, parent, readcb, writecb, default,
+        return build_attribute(name, parent, readcb, writecb, default,
                               allowedArgins)
 
     @deprecated
@@ -653,7 +653,7 @@ class scpi(_Logger):
 
     @timeit
     def _do_read_operation(self, subtree, word, channel_stack, params):
-        answer = subtree[word].read(chlst=channel_stack, params=params)
+        answer = subtree[word].read(ch_lst=channel_stack, params=params)
         if answer is None:
             answer = float('NaN')
         return answer
@@ -663,7 +663,7 @@ class scpi(_Logger):
         # TODO: By default don't provide a readback, but there will be an SCPI
         #       command to return an answer to the write commands
         if self._is_write_access_allowed():
-            answer = subtree[word].write(chlst=channel_stack, value=params)
+            answer = subtree[word].write(ch_lst=channel_stack, value=params)
             if answer is None:
                 # FIXME: it must be configurable
                 #  if there have to be an answer
