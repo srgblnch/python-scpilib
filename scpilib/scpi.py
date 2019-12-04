@@ -625,10 +625,10 @@ class scpi(_Logger):
                         if channel_stack is None:
                             channel_stack = []
                         channel_stack.append(number)
-                except Exception:
+                except Exception as exc:
                     self._error("Not possible to understand word {0!r} "
                                 "(from {1!r})", word, cmd)
-                    print_exc()
+                    self._debug("Exception {0}", exc)
                     return 'NOK'
             else:
                 try:
@@ -639,10 +639,11 @@ class scpi(_Logger):
                     else:
                         return self._do_write_operation(
                             subtree, word, channel_stack, params)
-                except Exception:
+                except Exception as exc:
                     self._error("Not possible to understand word {0!r} "
                                 "(from {1!r}) separator {2!r}, params {3!r}",
                                 word, cmd, separator, params)
+                    self._debug("Exception {0}", exc)
                     return 'NOK'
             try:
                 subtree = subtree[word]  # __next__()

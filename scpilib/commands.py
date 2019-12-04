@@ -135,6 +135,8 @@ class DictKey(_Logger, str):
             id = getId(other, self._minimum)
         else:
             id = int(DictKey(other))
+        self._debug("({1}) compare with '{2}' ({3})"
+                    "".format(self, hex(self.__id), other, hex(id)))
         return self.__id == id
 
     def __ne__(self, other):  # => self != other
@@ -502,9 +504,13 @@ class Component(_Logger, dict):
                 name = self._idxs[int(key)]
                 value = dict.__getitem__(self, name)
                 return value
-        except Exception:
-            pass
-        raise KeyError("{0} not found".format(key))
+            else:
+                self._debug("getitem key {0} ({1}) not in keys()"
+                            "".format(key, hex(int(key))))
+        except Exception as exc:
+            self._debug("Exception in __getitem__({0} ({1}))"
+                        "".format(key, hex(int(key))))
+        raise KeyError("{0} ({1}) not found".format(key, hex(int(key))))
 
     def __setitem__(self, key, value):
         '''
@@ -522,6 +528,8 @@ class Component(_Logger, dict):
         self._idxs[int(key)] = key
         dict.__setitem__(self, key, value)
         value.parent = self
+        self._debug("setitem {0} ({1}) with {2}"
+                    "".format(key, hex(int(key)), value))
 
     def pop(self, key):
         if not isinstance(key, DictKey):
