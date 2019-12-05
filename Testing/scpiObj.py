@@ -122,9 +122,10 @@ def _interTestWait():
     _wait(stepTime)
 
 
-def _afterTestWait(pause):
+def _afterTestWait(pause, msg=None, wait_time=None):
     if pause:
-        msg = "Press enter to continue... (Ctrl+c to break)"
+        if msg is None:
+            msg = "Press enter to continue... (Ctrl+c to break)"
         try:
             raw_input(msg)  # py2
         except NameError:
@@ -135,11 +136,14 @@ def _afterTestWait(pause):
         except KeyboardInterrupt:
             return False
     else:
-        _wait(stepTime*10)
+        if wait_time is None:
+            wait_time = stepTime*10
+        if wait_time > 0:
+            _wait(wait_time)
     return True
 
 
-def testScpi(debug, pause):
+def testScpi(debug, pause, no_remove):
     start_t = _time()
     _printHeader("Testing scpi main class (version %s)" % (_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
@@ -169,6 +173,8 @@ def testScpi(debug, pause):
                     break
         except KeyboardInterrupt:
             print("Test interrupted...")
+        txt = "Tests completed (Ctrl+c to print the summary and end)"
+        _afterTestWait(no_remove, msg=txt, wait_time=0)
     if all(results):
         _printHeader("All tests passed: everything OK (%g s)"
                      % (_time()-start_t))
@@ -481,52 +487,52 @@ def checkCommandWrites(scpiObj):
 
 def checkNonexistingCommands(scpiObj):
     _printHeader("Testing to query commands that doesn't exist")
-    try:
-        baseCmd = _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
-        subCmd = _randomchoice(['CURRent', 'VOLTage'])
-        attr = _randomchoice(['UPPEr', 'LOWEr', 'VALUe'])
-        fake = "FAKE"
+    baseCmd = _randomchoice(['SOURce', 'BASIcloop', 'ITERative'])
+    subCmd = _randomchoice(['CURRent', 'VOLTage'])
+    attr = _randomchoice(['UPPEr', 'LOWEr', 'VALUe'])
+    fake = "FAKE"
+
+    start_t = _time()
+
+    pairs = [
         # * first level doesn't exist
-        start_t = _time()
-        cmd = "%s:%s:%s?" % (fake, subCmd, attr)
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["%s:%s:%s?" % (fake, subCmd, attr), 'NOK\r\n'],
         # * intermediate level doesn't exist
-        cmd = "%s:%s:%s?" % (baseCmd, fake, attr)
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["%s:%s:%s?" % (baseCmd, fake, attr), 'NOK\r\n'],
         # * Attribute level doesn't exist
-        cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing command %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["%s:%s:%s?" % (baseCmd, subCmd, fake), 'NOK\r\n'],
         # * Attribute that doesn't respond
-        cmd = 'source:voltage:exception'
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest existing command but that it raises an exception %s"
-              "\n\tAnswer: %r (%g ms)" % (cmd, answer, (_time()-start_t)*1000))
+        ['source:voltage:exception', 'NOK\r\n'],
         # * Unexisting Channel
-        baseCmd = "CHANnel%s" % (str(nChannels+3).zfill(2))
-        cmd = "%s:%s:%s?" % (baseCmd, subCmd, fake)
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["CHANnel%s" % (str(nChannels+3).zfill(2)), 'NOK\r\n'],
         # * Channel below the minimum reference
-        cmd = "CHANnel00:VOLTage:UPPEr?"
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["CHANnel00:VOLTage:UPPEr?", 'NOK\r\n'],
         # * Channel above the maximum reference
-        cmd = "CHANnel99:VOLTage:UPPEr?"
-        answer = _send2Input(scpiObj, cmd, checkAnswer=False)
-        print("\tRequest non-existing channel %s\n\tAnswer: %r (%g ms)"
-              % (cmd, answer, (_time()-start_t)*1000))
+        ["CHANnel99:VOLTage:UPPEr?", 'NOK\r\n'],
+    ]
+    correct, failed = 0, 0
+
+    for cmd, expected_answer in pairs:
+        answer = ''
+        try:
+            start_t = _time()
+            answer = _send2Input(
+                scpiObj, cmd, expected_answer=expected_answer)
+            correct += 1
+        except ValueError as exc:
+            print("\tFake command answer failed: {0}".format(exc))
+            failed += 1
+        except Exception as exc:
+            print("\tUnexpected kind of exception! {0}".format(exc))
+            print_exc()
+            failed += 1
+        print("\tRequest non-existing command {0}\n"
+              "\tAnswer: {1!r} ({2:g} ms)"
+              "".format(cmd, answer, (_time()-start_t)*1000))
+    if failed == 0:
         result = True, "Non-existing commands test PASSED"
-    except Exception as e:
-        print("\tUnexpected kind of exception! %s" % e)
-        print_exc()
+    else:
+        print("Failed {0}/{1}".format(failed, correct+failed))
         result = False, "Non-existing commands test FAILED"
     _printFooter(result[1])
     return result
@@ -549,20 +555,37 @@ def checkArrayAnswers(scpiObj):
         scpiObj.add_command(VoltageCmd, readcb=VoltageObj.readTest)
         # queries
         answersLengths = {}
+        correct, failed = 0, 0
         for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
             for format in ['ASCII', 'QUADRUPLE', 'DOUBLE', 'SINGLE', 'HALF']:
                 answer = _send2Input(scpiObj, "DataFormat %s" % (format),
-                                     checkAnswer=False)
-                answer = _send2Input(scpiObj, cmd + '?')
-                print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
-                                                                len(answer)))
+                                     check_answer=False)
+                answer = None
+                try:
+                    answer = _send2Input(
+                        scpiObj, cmd + '?', bad_answer='NOK\r\n')
+                except ValueError as exc:
+                    print(exc)
+                    failed += 1
+                else:
+                    correct += 1
+                print("\rRequest {0}\n\t{1}"
+                      "".format(cmd,
+                                "Answer: {0!r} (len {1:2})"
+                                "".format(answer, len(answer))
+                                if answer is not None else ""))
                 if format not in answersLengths:
                     answersLengths[format] = []
-                answersLengths[format].append(len(answer))
+                answersLengths[format].append(len(answer)
+                                              if answer is not None else 0)
         print("\n\tanswer lengths summary: %s"
               % "".join('\n\t\t{}:{}'.format(k, v)
                         for k, v in answersLengths.iteritems()))
-        result = True, "Array answers test PASSED"
+        if failed == 0:
+            result = True, "Array answers test PASSED"
+        else:
+            print("Failed {0}/{1}".format(failed, correct+failed))
+            result = False, "Array answers test FAILED"
     except Exception as e:
         print("\tUnexpected kind of exception! %s" % e)
         print_exc()
@@ -608,7 +631,7 @@ def checkReadWithParams(scpiObj):
         cmd = 'reader:with:parameters'
         longTest = ArrayTest(100)
         scpiObj.add_command(cmd, readcb=longTest.readRange)
-        answer = _send2Input(scpiObj, "DataFormat ASCII", checkAnswer=False)
+        answer = _send2Input(scpiObj, "DataFormat ASCII", check_answer=False)
         for i in range(10):
             bar, foo = _randint(0, 100), _randint(0, 100)
             start = min(bar, foo)
@@ -639,7 +662,7 @@ def checkWriteWithoutParams(scpiObj):
         scpiObj.add_command(cmd, readcb=switch.switchTest)
         for i in range(3):
             cmd = "%s%s" % (cmd, " "*i)
-            answer = _send2Input(scpiObj, cmd, checkAnswer=False)
+            answer = _send2Input(scpiObj, cmd, check_answer=False)
             print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
                                                             len(answer)))
         result = True, "Write without parameters test PASSED"
@@ -694,10 +717,18 @@ def checkTelnetHooks(scpiObj):
 # second descendant level for tests ---
 
 
-def _send2Input(scpiObj, msg, requestor='local', checkAnswer=True):
+def _send2Input(scpiObj, msg, requestor='local',
+                check_answer=True, expected_answer=None, bad_answer=None):
     answer = scpiObj.input(msg)
-    if checkAnswer and (answer is None or len(answer) == 0):
-        raise ValueError("Empty string answer for %s" % (msg))
+    if check_answer and (answer is None or len(answer) == 0):
+        raise ValueError("Empty string answer for {0}".format(msg))
+    if expected_answer is not None and answer != expected_answer:
+        raise ValueError(
+            "Answer {0!r} doesn't correspond with the expected {1!r} for {2}"
+            "".format(answer, expected_answer, msg))
+    if bad_answer is not None and answer == bad_answer:
+        raise ValueError(
+            "Answer {0!r} is not what is expected".format(answer))
     return answer
 
 
@@ -725,7 +756,7 @@ def _doWriteCommand(scpiObj, cmd, value=None):
         value = _randint(-1000, 1000)
         while value == int(answer1.strip()):
             value = _randint(-1000, 1000)
-    _send2Input(scpiObj, "%s %s" % (cmd, value), checkAnswer=False)
+    _send2Input(scpiObj, "%s %s" % (cmd, value), check_answer=False)
     print("\tWrite %r value: %r" % (cmd, value))
     # read again ---
     answer2 = _send2Input(scpiObj, "%s?" % cmd)
@@ -782,7 +813,7 @@ def _channelCmds_write(scpiObj, pre, inner, post, nCh, value):
         wCmd = wCmd[:-1]
     else:
         wCmd = "%s%s:%s %s" % (pre, str(inner).zfill(2), post, value)
-    answer = _send2Input(scpiObj, "%s" % (wCmd), checkAnswer=False)
+    answer = _send2Input(scpiObj, "%s" % (wCmd), check_answer=False)
     return answer, wCmd
 
 
@@ -1067,11 +1098,13 @@ def main():
                       help="Set the debug flag")
     parser.add_option('', "--pause", action="store_true", default=False,
                       help="Pause after each of the tests")
+    parser.add_option('--no-remove', dest='no_remove', action="store_true",
+                      help="don't destroy the test until the user say")
     (options, args) = parser.parse_args()
     scpi_timeit_collection(True)
     for test in [testScpi]:
         try:
-            test(options.debug, options.pause)
+            test(options.debug, options.pause, options.no_remove)
         except Exception as e:
             msg = "Test failed!"
             border = "*"*len(msg)
