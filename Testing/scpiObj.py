@@ -558,27 +558,25 @@ def checkArrayAnswers(scpiObj):
         correct, failed = 0, 0
         for cmd in [attrCmd, CurrentCmd, VoltageCmd]:
             for format in ['ASCII', 'QUADRUPLE', 'DOUBLE', 'SINGLE', 'HALF']:
-                answer = _send2Input(scpiObj, "DataFormat %s" % (format),
-                                     check_answer=False)
+                _send2Input(scpiObj, "DataFormat %s" % (format),
+                            check_answer=False)
                 answer = None
                 try:
                     answer = _send2Input(
                         scpiObj, cmd + '?', bad_answer='NOK\r\n')
                 except ValueError as exc:
-                    print(exc)
+                    msg = "Error: {0}".format(exc)
                     failed += 1
                 else:
+                    msg = "Answer: {0!r} (len ({1:d})" \
+                          "".format(answer, len(answer))
                     correct += 1
-                print("\rRequest {0}\n\t{1}"
-                      "".format(cmd,
-                                "Answer: {0!r} (len {1:2})"
-                                "".format(answer, len(answer))
-                                if answer is not None else ""))
+                print("\tRequest {0!r}\n\t{1}\n".format(cmd, msg))
                 if format not in answersLengths:
                     answersLengths[format] = []
-                answersLengths[format].append(len(answer)
-                                              if answer is not None else 0)
-        print("\n\tanswer lengths summary: %s"
+                answersLengths[format].append(
+                    len(answer) if answer is not None else 0)
+        print("\tanswer lengths summary: %s"
               % "".join('\n\t\t{}:{}'.format(k, v)
                         for k, v in answersLengths.iteritems()))
         if failed == 0:
@@ -597,7 +595,8 @@ def checkArrayAnswers(scpiObj):
 def checkMultipleCommands(scpiObj):
     _printHeader("Requesting more than one attribute per query")
     try:
-        log = []
+        log = {}
+        correct, failed = 0, 0
         for i in range(2, concatenatedCmds+1):
             lst = []
             for j in range(i):
@@ -606,19 +605,36 @@ def checkMultipleCommands(scpiObj):
             cmdsSplitted = "".join("\t\t%s\n" % cmd for cmd in cmds.split(';'))
             start_t = _time()
             answer = _send2Input(scpiObj, cmds)
-            nAnswers = len(_cutMultipleAnswer(answer))
-            log.append(_time() - start_t)
-            print("\tRequest %d attributes in a single query: \n%s\tAnswer: "
-                  "%r (%d, %g ms)\n" % (i, cmdsSplitted, answer, nAnswers,
-                                        log[-1]*1000))
+            answers = _cutMultipleAnswer(answer)
+            nAnswers = len(answers)
+            if '' in answers or 'ACK' in answers or 'NOK' in answers:
+                failed += 1
+            else:
+                correct += 1
+            log[nAnswers] = (_time() - start_t)*1000
+            print("\tRequest {0:d} attributes in a single query: \n"
+                  "{1}\tAnswer: {2!r} ({3:d}, {4:g} ms)\n"
+                  "".format(i, cmdsSplitted, answer, nAnswers, log[nAnswers]))
             if nAnswers != i:
-                raise AssertionError("The answer doesn't have the %d expected "
-                                     "elements" % (i))
+                raise AssertionError(
+                    "The answer doesn't have the {0:d} expected elements "
+                    "(but {1:d})"
+                    "".format(i, nAnswers))
             _interTestWait()
+        msg = "\tSummary:"
+        for length in log:
+            t = log[length]
+            msg += "\n\t\t{0}\t{1:6.3f} ms\t{2:6.3f} ms/cmd" \
+                   "".format(length, t, t/length)
+        print(msg)
+        if failed == 0:
+            result = True, "Many commands per query test PASSED"
+        else:
+            print("Failed {0}/{1}".format(failed, correct+failed))
+            result = False, "Many commands per query test FAILED"
         # TODO: multiple writes
-        result = True, "Many commands per query test PASSED"
-    except Exception as e:
-        print("\tUnexpected kind of exception! %s" % e)
+    except Exception as exc:
+        print("\tUnexpected kind of exception! {0}".format(exc))
         print_exc()
         result = False, "Many commands per query test FAILED"
     _printFooter(result[1])
@@ -632,20 +648,32 @@ def checkReadWithParams(scpiObj):
         longTest = ArrayTest(100)
         scpiObj.add_command(cmd, readcb=longTest.readRange)
         answer = _send2Input(scpiObj, "DataFormat ASCII", check_answer=False)
+        correct, failed = 0, 0
         for i in range(10):
             bar, foo = _randint(0, 100), _randint(0, 100)
             start = min(bar, foo)
             end = max(bar, foo)
             # introduce a ' ' (write separator) after the '?' (read separator)
             cmdWithParams = "%s?%3s,%s" % (cmd, start, end)
-            answer = _send2Input(scpiObj, cmdWithParams)
-            print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmdWithParams,
-                                                            answer,
-                                                            len(answer)))
+            try:
+                answer = _send2Input(
+                    scpiObj, cmdWithParams, bad_answer='NOK\r\n')
+            except ValueError as exc:
+                msg = "Error: {0}".format(exc)
+                failed += 1
+            else:
+                msg = "Answer: {0!r} (len ({1:d})" \
+                      "".format(answer, len(answer))
+                correct += 1
+            print("\tRequest {0!r}\n\t{1}\n".format(cmdWithParams, msg))
             if answer is None or len(answer) == 0:
                 raise ValueError("Empty string")
         cmdWithParams = "%s?%s,%s" % (cmd, start, end)
-        result = True, "Read with parameters test PASSED"
+        if failed == 0:
+            result = True, "Read with parameters test PASSED"
+        else:
+            print("Failed {0}/{1}".format(failed, correct+failed))
+            result = False, "Read with parameters test FAILED"
     except Exception as e:
         print("\tUnexpected kind of exception! %s" % e)
         print_exc()
@@ -660,12 +688,24 @@ def checkWriteWithoutParams(scpiObj):
         cmd = 'writter:without:parameters'
         switch = WattrTest()
         scpiObj.add_command(cmd, readcb=switch.switchTest)
+        correct, failed = 0, 0
         for i in range(3):
             cmd = "%s%s" % (cmd, " "*i)
-            answer = _send2Input(scpiObj, cmd, check_answer=False)
-            print("\tRequest %s \n\tAnswer: %r (len %d)" % (cmd, answer,
-                                                            len(answer)))
-        result = True, "Write without parameters test PASSED"
+            try:
+                answer = _send2Input(scpiObj, cmd, expected_answer='ACK\r\n')
+            except ValueError as exc:
+                msg = "Error: {0}".format(exc)
+                failed += 1
+            else:
+                msg = "Answer: {0!r} (len ({1:d})" \
+                      "".format(answer, len(answer))
+                correct += 1
+            print("\tRequest {0!r}\n\t{1}\n".format(cmd, msg))
+        if failed == 0:
+            result = True, "Write without parameters test PASSED"
+        else:
+            print("Failed {0}/{1}".format(failed, correct+failed))
+            result = False, "Write without parameters test FAILED"
     except Exception as e:
         print("\tUnexpected kind of exception! %s" % e)
         print_exc()
