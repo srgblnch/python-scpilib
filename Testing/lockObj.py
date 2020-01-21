@@ -25,14 +25,9 @@ from scpilib.lock import Locker
 
 # --- testing area
 from optparse import OptionParser
-try:
-    from ._printing import printHeader as _printHeader
-    from ._printing import printFooter as _printFooter
-    from ._printing import printInfo as _printInfo
-except ImportError:
-    from _printing import printHeader as _printHeader
-    from _printing import printFooter as _printFooter
-    from _printing import printInfo as _printInfo
+from _printing import printHeader as _printHeader
+from _printing import printFooter as _printFooter
+from _printing import printInfo as _printInfo
 import sys
 from time import sleep as _sleep
 from threading import currentThread as _currentThread

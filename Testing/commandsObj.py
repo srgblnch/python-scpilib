@@ -26,17 +26,14 @@ __license__ = "GPLv3+"
 try:
     from numpy.random import random as _np_randomArray
     from numpy import array as _np_array
-except:
+except Exception:
     _np_randomArray = None
 from _objects import *
-try:
-    from ._printing import printHeader
-except:
-    from _printing import printHeader
-from scpilib.commands import BuildAttribute
-from scpilib.commands import BuildChannel
-from scpilib.commands import BuildComponent
-from scpilib.commands import BuildSpecialCmd
+from _printing import printHeader
+from scpilib.commands import build_attribute
+from scpilib.commands import build_channel
+from scpilib.commands import build_component
+from scpilib.commands import build_special_cmd
 from scpilib.commands import DictKey
 from scpilib.version import version
 
@@ -61,21 +58,21 @@ def testComponent(output=True):
     # TODO: test channel like Components
     if output:
         printHeader("Tests for the Component dictionary construction")
-    scpitree = BuildComponent()
+    scpitree = build_component()
     if output:
         print("Build a root component: %r" % (scpitree))
-    rootNode = BuildComponent('rootnode', scpitree)
-    nestedA = BuildComponent('nesteda', rootNode)
-    leafA = BuildAttribute('leafa', nestedA)
+    rootNode = build_component('rootnode', scpitree)
+    nestedA = build_component('nesteda', rootNode)
+    leafA = build_attribute('leafa', nestedA)
     if output:
         print("Assign a nested component:%r" % (scpitree))
-    nestedB = BuildComponent('nestedb', rootNode)
-    leafB = BuildAttribute('leafb', nestedB)
+    nestedB = build_component('nestedb', rootNode)
+    leafB = build_attribute('leafb', nestedB)
     if output:
         print("Assign another nested component:%r" % (scpitree))
-    nestedC = BuildComponent('nestedc', rootNode)
-    subnestedC = BuildComponent('subnestedc', nestedC)
-    leafC = BuildAttribute('leafc', subnestedC)
+    nestedC = build_component('nestedc', rootNode)
+    subnestedC = build_component('subnestedc', nestedC)
+    leafC = build_attribute('leafc', subnestedC)
     if output:
         print("Assign a double nested component:%r" % (scpitree))
     return scpitree
@@ -84,30 +81,30 @@ def testComponent(output=True):
 def testAttr(output=True):
     if output:
         printHeader("Testing read/write operations construction")
-    scpitree = BuildComponent()
+    scpitree = build_component()
     voltageObj = AttrTest()
     currentObj = AttrTest()
-    source = BuildComponent('source', scpitree)
-    voltageComp = BuildComponent('voltage', source)
-    UpperVoltage = BuildAttribute('upper', voltageComp,
-                                  readcb=voltageObj.upperLimit,
-                                  writecb=voltageObj.upperLimit)
-    LowerVoltage = BuildAttribute('lower', voltageComp,
-                                  readcb=voltageObj.lowerLimit,
-                                  writecb=voltageObj.lowerLimit)
-    ReadVoltage = BuildAttribute('value', voltageComp,
-                                 readcb=voltageObj.readTest,
-                                 default=True)
-    currentComp = BuildComponent('current', source)
-    UpperCurrent = BuildAttribute('upper', currentComp,
-                                  readcb=currentObj.upperLimit,
-                                  writecb=currentObj.upperLimit)
-    LowerCurrent = BuildAttribute('lower', currentComp,
-                                  readcb=currentObj.lowerLimit,
-                                  writecb=currentObj.lowerLimit)
-    ReadCurrent = BuildAttribute('value', currentComp,
-                                 readcb=currentObj.readTest,
-                                 default=True)
+    source = build_component('source', scpitree)
+    voltageComp = build_component('voltage', source)
+    UpperVoltage = build_attribute('upper', voltageComp,
+                                   read_cb=voltageObj.upperLimit,
+                                   write_cb=voltageObj.upperLimit)
+    LowerVoltage = build_attribute('lower', voltageComp,
+                                   read_cb=voltageObj.lowerLimit,
+                                   write_cb=voltageObj.lowerLimit)
+    ReadVoltage = build_attribute('value', voltageComp,
+                                  read_cb=voltageObj.readTest,
+                                  default=True)
+    currentComp = build_component('current', source)
+    UpperCurrent = build_attribute('upper', currentComp,
+                                   read_cb=currentObj.upperLimit,
+                                   write_cb=currentObj.upperLimit)
+    LowerCurrent = build_attribute('lower', currentComp,
+                                   read_cb=currentObj.lowerLimit,
+                                   write_cb=currentObj.lowerLimit)
+    ReadCurrent = build_attribute('value', currentComp,
+                                  read_cb=currentObj.readTest,
+                                  default=True)
     if output:
         print("%r" % (scpitree))
     return scpitree
@@ -120,8 +117,8 @@ def idn():
 def testSpeciaCommands(output=True):
     if output:
         printHeader("Testing the special commands construction")
-    scpiSpecials = BuildComponent()
-    idnCmd = BuildSpecialCmd("IDN", scpiSpecials, idn)
+    scpiSpecials = build_component()
+    idnCmd = build_special_cmd("IDN", scpiSpecials, idn)
     if output:
         print("IDN answer: %s" % (scpiSpecials["IDN"].read()))
     return scpiSpecials
@@ -130,30 +127,30 @@ def testSpeciaCommands(output=True):
 def testChannels(output=True):
     if output:
         printHeader("Testing the channels commands construction")
-    scpiChannels = BuildComponent()
+    scpiChannels = build_component()
     voltageObj = ChannelTest(nChannels)
     currentObj = ChannelTest(nChannels)
-    channels = BuildChannel("channel", nChannels, scpiChannels)
-    voltageComp = BuildComponent('voltage', channels)
-    UpperVoltage = BuildAttribute('upper', voltageComp,
-                                  readcb=voltageObj.upperLimit,
-                                  writecb=voltageObj.upperLimit)
-    LowerVoltage = BuildAttribute('lower', voltageComp,
-                                  readcb=voltageObj.lowerLimit,
-                                  writecb=voltageObj.lowerLimit)
-    ReadVoltage = BuildAttribute('value', voltageComp,
-                                 readcb=voltageObj.readTest,
-                                 default=True)
-    currentComp = BuildComponent('current', channels)
-    UpperCurrent = BuildAttribute('upper', currentComp,
-                                  readcb=currentObj.upperLimit,
-                                  writecb=currentObj.upperLimit)
-    LowerCurrent = BuildAttribute('lower', currentComp,
-                                  readcb=currentObj.lowerLimit,
-                                  writecb=currentObj.lowerLimit)
-    ReadCurrent = BuildAttribute('value', currentComp,
-                                 readcb=currentObj.readTest,
-                                 default=True)
+    channels = build_channel("channel", nChannels, scpiChannels)
+    voltageComp = build_component('voltage', channels)
+    UpperVoltage = build_attribute('upper', voltageComp,
+                                   read_cb=voltageObj.upperLimit,
+                                   write_cb=voltageObj.upperLimit)
+    LowerVoltage = build_attribute('lower', voltageComp,
+                                   read_cb=voltageObj.lowerLimit,
+                                   write_cb=voltageObj.lowerLimit)
+    ReadVoltage = build_attribute('value', voltageComp,
+                                  read_cb=voltageObj.readTest,
+                                  default=True)
+    currentComp = build_component('current', channels)
+    UpperCurrent = build_attribute('upper', currentComp,
+                                   read_cb=currentObj.upperLimit,
+                                   write_cb=currentObj.upperLimit)
+    LowerCurrent = build_attribute('lower', currentComp,
+                                   read_cb=currentObj.lowerLimit,
+                                   write_cb=currentObj.lowerLimit)
+    ReadCurrent = build_attribute('value', currentComp,
+                                  read_cb=currentObj.readTest,
+                                  default=True)
     if output:
         print("%r" % (scpiChannels))
     return scpiChannels
@@ -162,32 +159,32 @@ def testChannels(output=True):
 def testChannelsWithSubchannels(output=True):
     if output:
         printHeader("Testing the nested channels commands construction")
-    scpiChannels = BuildComponent()
+    scpiChannels = build_component()
     voltageObj = SubchannelTest(nChannels, nSubchannels)
     currentObj = SubchannelTest(nChannels, nSubchannels)
-    channels = BuildChannel("channel", nChannels, scpiChannels)
-    measures = BuildComponent('measures', channels)
-    functions = BuildChannel("function", nSubchannels, measures)
-    voltageComp = BuildComponent('voltage', functions)
-    UpperVoltage = BuildAttribute('upper', voltageComp,
-                                  readcb=voltageObj.upperLimit,
-                                  writecb=voltageObj.upperLimit)
-    LowerVoltage = BuildAttribute('lower', voltageComp,
-                                  readcb=voltageObj.lowerLimit,
-                                  writecb=voltageObj.lowerLimit)
-    ReadVoltage = BuildAttribute('value', voltageComp,
-                                 readcb=voltageObj.readTest,
-                                 default=True)
-    currentComp = BuildComponent('current', functions)
-    UpperCurrent = BuildAttribute('upper', currentComp,
-                                  readcb=currentObj.upperLimit,
-                                  writecb=currentObj.upperLimit)
-    LowerCurrent = BuildAttribute('lower', currentComp,
-                                  readcb=currentObj.lowerLimit,
-                                  writecb=currentObj.lowerLimit)
-    ReadCurrent = BuildAttribute('value', currentComp,
-                                 readcb=currentObj.readTest,
-                                 default=True)
+    channels = build_channel("channel", nChannels, scpiChannels)
+    measures = build_component('measures', channels)
+    functions = build_channel("function", nSubchannels, measures)
+    voltageComp = build_component('voltage', functions)
+    UpperVoltage = build_attribute('upper', voltageComp,
+                                   read_cb=voltageObj.upperLimit,
+                                   write_cb=voltageObj.upperLimit)
+    LowerVoltage = build_attribute('lower', voltageComp,
+                                   read_cb=voltageObj.lowerLimit,
+                                   write_cb=voltageObj.lowerLimit)
+    ReadVoltage = build_attribute('value', voltageComp,
+                                  read_cb=voltageObj.readTest,
+                                  default=True)
+    currentComp = build_component('current', functions)
+    UpperCurrent = build_attribute('upper', currentComp,
+                                   read_cb=currentObj.upperLimit,
+                                   write_cb=currentObj.upperLimit)
+    LowerCurrent = build_attribute('lower', currentComp,
+                                   read_cb=currentObj.lowerLimit,
+                                   write_cb=currentObj.lowerLimit)
+    ReadCurrent = build_attribute('value', currentComp,
+                                  read_cb=currentObj.readTest,
+                                  default=True)
     if output:
         print("%r" % (scpiChannels))
     return scpiChannels
@@ -196,10 +193,10 @@ def testChannelsWithSubchannels(output=True):
 def testArrayAnswers(output=True):
     if output:
         printHeader("Testing the array conversion answers")
-    scpiArrays = BuildComponent()
+    scpiArrays = build_component()
     reading = ArrayTest()
-    arrayreader = BuildAttribute('readarray', scpiArrays,
-                                 readcb=reading.readTest)
+    arrayreader = build_attribute('readarray', scpiArrays,
+                                  read_cb=reading.readTest)
     if output:
         print("%r" % (scpiArrays))
     return scpiArrays
