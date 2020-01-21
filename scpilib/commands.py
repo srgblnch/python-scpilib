@@ -764,7 +764,7 @@ def build_special_cmd(name, parent, readcb, writecb=None):
 
 @deprecated
 def BuildSpecialCmd(*args, **kwargs):
-    return BuildSpecialCmd(*args, **kwargs)
+    return build_special_cmd(*args, **kwargs)
 
 
 class Channel(Component):
