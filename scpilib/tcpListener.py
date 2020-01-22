@@ -19,10 +19,10 @@
 
 try:
     from .logger import Logger as _Logger
-    from .logger import deprecated
+    from .logger import deprecated, deprecated_argument
 except Exception:
     from logger import Logger as _Logger
-    from logger import deprecated
+    from logger import deprecated, deprecated_argument
 from gc import collect as _gccollect
 import socket as _socket
 import threading as _threading
@@ -91,24 +91,32 @@ class TcpListener(_Logger):
     _listener_ipv4 = None
     _socket_ipv4 = None
 
-    _withipv6suport = None
+    _with_ipv6_support = None
     _host_ipv6 = None
     _listener_ipv6 = None
     _socket_ipv6 = None
 
     def __init__(self, name=None, callback=None, local=True, port=5025,
-                 maxClients=_MAX_CLIENTS, ipv6=True, *args, **kwargs):
+                 max_clients=None, ipv6=True,
+                 maxClients=None,
+                 *args, **kwargs):
         super(TcpListener, self).__init__(*args, **kwargs)
+        if maxClients is not None:
+            deprecated_argument("TcpListener", "__init__", "maxClients")
+            if max_clients is None:
+                max_clients = maxClients
+        if max_clients is None:
+            max_clients = _MAX_CLIENTS
         self._name = name or "TcpListener"
         self._callback = callback
         self._connection_hooks = []
         self._local = local
         self._port = port
-        self._max_clients = maxClients
+        self._max_clients = max_clients
         self._join_event = _threading.Event()
         self._join_event.clear()
         self._connection_threads = {}
-        self._withipv6suport = ipv6
+        self._with_ipv6_support = ipv6
         self.open()
         self._debug("Listener thread prepared")
 
@@ -141,11 +149,11 @@ class TcpListener(_Logger):
             self._debug("Deleting TcpListener")
             self._join_event.set()
         self._shutdown_socket(self._socket_ipv4)
-        if self._withipv6suport and hasattr(self, '_socket_ipv6'):
+        if self._with_ipv6_support and hasattr(self, '_socket_ipv6'):
             self._shutdown_socket(self._socket_ipv6)
         if self._is_listening_ipv4():
             self._socket_ipv4 = None
-        if self._withipv6suport and self._is_listening_ipv6():
+        if self._with_ipv6_support and self._is_listening_ipv6():
             self._socket_ipv6 = None
         _gccollect()
         while self.is_alive():
@@ -202,7 +210,7 @@ class TcpListener(_Logger):
         return self.build_ipv4_socket()
 
     def build_ipv6_socket(self):
-        if self._withipv6suport:
+        if self._with_ipv6_support:
             if not _socket.has_ipv6:
                 raise AssertionError("IPv6 not supported by the platform")
             if self._local:
@@ -225,7 +233,8 @@ class TcpListener(_Logger):
     def buildIpv6Socket(self):
         return self.build_ipv6_socket()
 
-    def _shutdown_socket(self, sock):
+    @staticmethod
+    def _shutdown_socket(sock):
         try:
             sock.shutdown(_socket.SHUT_RDWR)
         except Exception as e:

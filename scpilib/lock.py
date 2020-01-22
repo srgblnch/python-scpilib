@@ -22,9 +22,11 @@ from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 try:
     from .logger import Logger as _Logger
+    from .logger import deprecated, deprecated_argument
 except Exception:
     from logger import Logger as _Logger
-from threading import currentThread as _currentThread
+    from logger import deprecated, deprecated_argument
+from threading import currentThread as _current_thread
 
 
 __author__ = "Sergi Blanch-Torné"
@@ -75,42 +77,42 @@ class Locker(_Logger):
             Request to book the access. If its free (or has expired a previous
             one) do it, else reject (even if the owner recalls it).
         """
-        # self._debug("%s request()" % _currentThread().name)
+        # self._debug("%s request()" % _current_thread().name)
         if not self._hasOwner() or self._hasExpired():
             self._doLock(timeout)
             return True
         else:
             self._warning("{0} request the lock when already is",
-                          _currentThread().name)
+                          _current_thread().name)
             return False
 
     def release(self):
         """
             Only the owner can release the lock.
         """
-        # self._debug("%s release()" % _currentThread().name)
+        # self._debug("%s release()" % _current_thread().name)
         if self._isOwner():
             self._debug("{0} releases the lock", self._owner)
             self._doRelease()
             return True
         else:
             self._error("{0} is NOT allowed to release {1}'s lock",
-                        _currentThread().name, self._owner)
+                        _current_thread().name, self._owner)
             return False
 
     def access(self):
         """
             Request if the give thread is allowed to access the resource.
         """
-        # self._debug("%s access()" % _currentThread().name)
+        # self._debug("%s access()" % _current_thread().name)
         if not self.isLock():
             self._debug("There is no owner of the lock, {0} can pass",
-                        _currentThread().name)
+                        _current_thread().name)
             return True
         elif self._isOwner():
             self._when = _datetime.now()
             self._debug("The owner is who is asking ({0}), "
-                        "renew its booking", _currentThread().name)
+                        "renew its booking", _current_thread().name)
             return True
         else:
             return False
@@ -119,65 +121,99 @@ class Locker(_Logger):
         """
             Check if the lock is owned.
         """
-        # self._debug("%s isLock()" % _currentThread().name)
+        # self._debug("%s isLock()" % _current_thread().name)
         if self._hasOwner() and not self._hasExpired():
             return True
         return False
 
     @property
-    def expirationTime(self):
+    def expiration_time(self):
         return self._expiration
 
-    @expirationTime.setter
-    def expirationTime(self, value):
+    @property
+    @deprecated
+    def expirationTime(self):
+        return self.expiration_time
+
+    @expiration_time.setter
+    def expiration_time(self, value):
         if not self._hasExpired() or self._isOwner():
             self._setExpiration(value)
         else:
             raise EnvironmentError("Only the owner can change the expiration")
 
+    @expirationTime.setter
+    @deprecated
+    def expirationTime(self, value):
+        self.expiration_time = value
+
     # force area ---
 
-    def _forceRelease(self):
+    def _force_release(self):
         self._warning("Locker forced to be released!")
-        self._doRelease()
+        self._do_release()
 
-    def _forceLock(self):
+    @deprecated
+    def _forceRelease(self):
         self._forceRelease()
-        self._doLock()
+
+    def _force_lock(self):
+        self._force_release()
+        self._do_lock()
+
+    @deprecated
+    def _forceLock(self):
+        self._force_lock()
 
     # internal methods ---
 
-    def _hasOwner(self):
-        hasOwner = self._owner is not None
-#         if hasOwner:
+    def _has_owner(self):
+        has_owner = self._owner is not None
+#         if has_owner:
 #             self._debug("Lock has owner ({0})", self._owner)
 #         else:
 #             self._debug("Lock is free")
-        return hasOwner
+        return has_owner
 
-    def _isOwner(self):
-        isOwner = self._owner == _currentThread().name
-#         if isOwner:
-#             self._debug("{0} is the owner", _currentThread().name)
+    @deprecated
+    def _hasOwner(self):
+        return self._has_owner()
+
+    def _is_owner(self):
+        is_owner = self._owner == _current_thread().name
+#         if is_owner:
+#             self._debug("{0} is the owner", _current_thread().name)
 #         else:
-#             self._debug("{1} is NOT the owner", _currentThread().name)
-        return isOwner
+#             self._debug("{1} is NOT the owner", _current_thread().name)
+        return is_owner
 
-    def _doLock(self, timeout=None):
-        if self._hasOwner():
+    @deprecated
+    def _isOwner(self):
+        return self._is_owner()
+
+    def _do_lock(self, timeout=None):
+        if self._has_owner():
             raise RuntimeError("Try to lock when not yet released")
-        self._owner = _currentThread().name
+        self._owner = _current_thread().name
         self._when = _datetime.now()
-        self.expirationTime = timeout
+        self.expiration_time = timeout
         self._info("{0} has take the lock (expiration time {1})",
-                   self.owner, self.expirationTime)
+                   self.owner, self.expiration_time)
 
-    def _doRelease(self):
+    @deprecated
+    def _doLock(self, *args, **kwargs):
+        return self._do_lock(*args, **kwargs)
+
+    def _do_release(self):
         self._owner = None
         self._when = None
         self._expiration = None
 
-    def _setExpiration(self, value):
+    @deprecated
+    def _doRelease(self):
+        return self._do_release()
+
+    def _set_expiration(self, value):
         if value is None:
             value = DEFAULT_EXPIRATION_TIME
         try:
@@ -193,7 +229,11 @@ class Locker(_Logger):
         else:
             self._expiration = value
 
-    def _hasExpired(self):
+    @deprecated
+    def _setExpiration(self, *args, **kwargs):
+        return self._set_expiration(*args, **kwargs)
+
+    def _has_expired(self):
         if self._when is None or self._expiration is None:
             # TBD: in fact here there is nothing to expire
             return True
@@ -201,7 +241,11 @@ class Locker(_Logger):
         if delta > self._expiration:
             self._info("No news from the lock owner ({0}) after {1}: release "
                        "the lock.", self._owner, delta)
-            self._doRelease()
+            self._do_release()
             return True
         self._debug("lock NOT expired, still {0} for {1}", delta, self._owner)
         return False
+
+    @deprecated
+    def _hasExpired(self):
+        return self._has_expired()

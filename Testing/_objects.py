@@ -29,12 +29,12 @@ from scpilib.commands import _np, _float16, _float32, _float64, _float128
 try:
     from numpy.random import random as _np_randomArray
     from numpy import array as _np_array
-except:
+except Exception:
     _np_randomArray = None
 
 
-nChannels = 8
-nSubchannels = nChannels*2
+n_channels = 8
+n_subchannels = n_channels*2
 
 
 class AttrTest:
@@ -66,11 +66,11 @@ class WattrTest(AttrTest):
         self._switch = False
 
     def readTest(self):
-        #print("read %s" % self._value)
+        # print("read %s" % self._value)
         return self._value
 
     def writeTest(self, value):
-        #print("write %s" % value)
+        # print("write %s" % value)
         self._value = value
 
     def switchTest(self):

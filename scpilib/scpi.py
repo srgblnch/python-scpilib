@@ -23,7 +23,8 @@ try:
     from .logger import Logger as _Logger
     from .logger import trace, scpi_debug
     from .logger import timeit, timeit_collection
-    from .logger import deprecated, deprecation_collection
+    from .logger import (deprecated, deprecation_collection,
+                         deprecated_argument, deprecation_arguments)
     from .tcpListener import TcpListener
     from .lock import Locker as _Locker
     from .version import version as _version
@@ -33,15 +34,16 @@ except Exception:
     from logger import Logger as _Logger
     from logger import trace, scpi_debug
     from logger import timeit, timeit_collection
-    from logger import deprecated, deprecation_collection
+    from logger import (deprecated, deprecation_collection,
+                        deprecated_argument, deprecation_arguments)
     from tcpListener import TcpListener
     from lock import Locker as _Locker
     from version import version as _version
 import re
 from time import sleep as _sleep
 from time import time as _time
-from threading import currentThread as _currentThread
-from traceback import print_exc
+from threading import currentThread as _current_thread
+from traceback import print_exc, format_exc
 
 
 __author__ = "Sergi Blanch-Torné"
@@ -93,16 +95,22 @@ class scpi(_Logger):
 
     _data_format = None
 
-    def __init__(self, command_tree=None, specialCommands=None,
-                 local=True, port=5025, autoOpen=False,
-                 services=None, writeLock=False, debug=False, *args, **kwargs):
+    def __init__(self, command_tree=None, special_commands=None,
+                 local=True, port=5025, auto_open=None, services=None,
+                 write_lock=None, debug=False,
+                 specialCommands=None, autoOpen=None, writeLock=None,
+                 *args, **kwargs):
         scpi_debug(debug)
         super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
         self._command_tree = command_tree or Component()
         self._command_tree.logEnable(self.logState())
         self._command_tree.logLevel(self.logGetLevel())
-        self._special_cmds = specialCommands or {}
+        if specialCommands is not None:
+            deprecated_argument("scpi", "__init__", "specialCommands")
+            if special_commands is None:
+                special_commands = specialCommands
+        self._special_cmds = special_commands or {}
         self._debug("Special commands: {0!r}", specialCommands)
         self._debug("Given commands: {0!r}", self._command_tree)
         self._local = local
@@ -114,10 +122,18 @@ class scpi(_Logger):
             header = "*"*len(msg)
             if services & (TCPLISTENER_LOCAL | TCPLISTENER_REMOTE):
                 self._local = bool(services & TCPLISTENER_LOCAL)
-        if autoOpen:
+        if autoOpen is not None:
+            deprecated_argument("scpi", "__init__", "autoOpen")
+            if auto_open is not None:
+                auto_open = autoOpen
+        if auto_open is True:
             self.open()
         self.__build_data_format_attribute()
-        self.__build_system_component(writeLock)
+        if writeLock is not None:
+            deprecated_argument("scpi", "__init__", "writeLock")
+            if auto_open is not None:
+                write_lock = writeLock
+        self.__build_system_component(write_lock)
 
     def __enter__(self):
         self._debug("received a enter() request")
@@ -189,11 +205,19 @@ class scpi(_Logger):
         strlen = 0
         for klass in deprecation_collection:
             for method in deprecation_collection[klass]:
-                method_full_name = "{0}.{1}".format(klass, method)
-                if len(method_full_name) > strlen:
-                    strlen = len(method_full_name)
+                full_name = "{0}.{1}".format(klass, method)
+                if len(full_name) > strlen:
+                    strlen = len(full_name)
                 value = deprecation_collection[klass][method]
-                aux[method_full_name] = value
+                aux[full_name] = value
+        for klass in deprecation_arguments:
+            for method in deprecation_arguments[klass]:
+                for argument in deprecation_arguments[klass][method]:
+                    full_name = "{0}.{1}({2})".format(klass, method, argument)
+                    if len(full_name) > strlen:
+                        strlen = len(full_name)
+                    value = deprecation_arguments[klass][method][argument]
+                    aux[full_name] = value
         for name in sorted(aux):
             value = aux[name]
             msg += "\tmethod {1:{0}} {2}\n".format(strlen, name, value)
@@ -285,10 +309,15 @@ class scpi(_Logger):
                            allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
                                           'SINGLE', 'HALF'])
 
-    def __build_system_component(self, writeLock):
+    def __build_system_component(self, write_lock, writeLock=None):
+        if writeLock is not None:
+            deprecated_argument("scpi", "__build_system_component",
+                                "writeLock")
+            if write_lock is None:
+                write_lock = writeLock
         system_tree = self.add_component('system', self._command_tree)
         self.__build_locker_component(system_tree)
-        if writeLock:
+        if write_lock:
             self.__build_wlocker_component(system_tree)
         else:
             self._wlock = None
@@ -312,21 +341,21 @@ class scpi(_Logger):
         self._lock = _Locker(name='readLock')
         sub_tree = self.add_component('LOCK', command_tree)
         self.add_attribute('owner', sub_tree, self._lock.Owner, default=True)
-        self.add_attribute('release', sub_tree, readcb=self._lock.release,
-                           writecb=self._lock.release)
+        self.add_attribute('release', sub_tree, read_cb=self._lock.release,
+                           write_cb=self._lock.release)
         self.add_attribute('request', sub_tree,
-                           readcb=self._lock.request,
-                           writecb=self._lock.request)
+                           read_cb=self._lock.request,
+                           write_cb=self._lock.request)
 
     def __build_wlocker_component(self, command_tree):
         self._wlock = _Locker(name='writeLock')
         sub_tree = self.add_component('WLOCK', command_tree)
         self.add_attribute('owner', sub_tree, self._wlock.Owner, default=True)
-        self.add_attribute('release', sub_tree, readcb=self._wlock.release,
-                           writecb=self._wlock.release)
+        self.add_attribute('release', sub_tree, read_cb=self._wlock.release,
+                           write_cb=self._wlock.release)
         self.add_attribute('request', sub_tree,
-                           readcb=self._wlock.request,
-                           writecb=self._wlock.request)
+                           read_cb=self._wlock.request,
+                           write_cb=self._wlock.request)
 
     @property
     def remote_allowed(self):
@@ -365,11 +394,20 @@ class scpi(_Logger):
 
     # # command introduction area ---
 
-    def add_special_command(self, name, readcb, writecb=None):
+    def add_special_command(self, name, read_cb, readcb=None,
+                            write_cb=None, writecb=None):
         '''
             Adds a command '*%s'%(name). If finishes with a '?' mark it will
             be called the readcb method, else will be the writecb method.
         '''
+        if readcb is not None:
+            deprecated_argument("scpi", "add_special_command", "readcb")
+            if read_cb is None:
+                read_cb = readcb
+        if writecb is not None:
+            deprecated_argument("scpi", "add_special_command", "writecb")
+            if write_cb is None:
+                write_cb = writecb
         try:
             name = name.lower()
             if name.startswith('*'):
@@ -390,7 +428,7 @@ class scpi(_Logger):
             if self._special_cmds is None:
                 self._special_cmds = {}
             self._debug("Adding special command '*{0}'".format(name))
-            build_special_cmd(name, self._special_cmds, readcb, writecb)
+            build_special_cmd(name, self._special_cmds, read_cb, write_cb)
         except (KeyError, NameError) as exc:
             raise exc  # re-raise
         except Exception as exc:
@@ -398,8 +436,8 @@ class scpi(_Logger):
                         "".format(name, exc))
 
     @deprecated
-    def addSpecialCommand(self, name, readcb, writecb=None):
-        return self.add_special_command(name, readcb, writecb)
+    def addSpecialCommand(self, *args, **kwargs):
+        return self.add_special_command(*args, **kwargs)
 
     @property
     def special_commands(self):
@@ -421,10 +459,21 @@ class scpi(_Logger):
         return build_component(name, parent)
 
     @deprecated
-    def addComponent(self, name, parent):
-        return self.add_component(name, parent)
+    def addComponent(self, *args, **kwargs):
+        return self.add_component(*args, **kwargs)
 
-    def add_channel(self, name, howMany, parent, startWith=1):
+    def add_channel(self, name, how_many, parent, start_with=None,
+                    howMany=None, startWith=None):
+        if howMany is not None:
+            deprecated_argument("scpi", "add_channel", "howMany")
+            if how_many is None:
+                how_many = howMany
+        if startWith is not None:
+            deprecated_argument("scpi", "add_channel", "startWith")
+            if start_with is None:
+                start_with = startWith
+        if start_with is None:
+            start_with = 1
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept components"
                             "".format(name))
@@ -439,14 +488,27 @@ class scpi(_Logger):
             # this is more like a get
             return parent[name]
         self._debug("Adding component '{0}' ({1})", name, parent)
-        return build_channel(name, howMany, parent, startWith)
+        return build_channel(name, how_many, parent, start_with)
 
     @deprecated
-    def addChannel(self, name, howMany, parent, startWith=1):
-        return self.add_channel(name, howMany, parent, startWith)
+    def addChannel(self, *args, **kwargs):
+        return self.add_channel(*args, **kwargs)
 
-    def add_attribute(self, name, parent, readcb, writecb=None, default=False,
-                      allowedArgins=None):
+    def add_attribute(self, name, parent, read_cb, write_cb=None,
+                      default=False, allowed_argins=None,
+                      readcb=None, writecb=None, allowedArgins=None):
+        if readcb is not None:
+            deprecated_argument("scpi", "add_attribute", "readcb")
+            if read_cb is None:
+                read_cb = readcb
+        if writecb is not None:
+            deprecated_argument("scpi", "add_attribute", "writecb")
+            if write_cb is None:
+                write_cb = writecb
+        if allowedArgins is not None:
+            deprecated_argument("scpi", "add_attribute", "allowedArgins")
+            if allowed_argins is None:
+                allowed_argins = allowedArgins
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept attributes"
                             "".format(name))
@@ -454,22 +516,22 @@ class scpi(_Logger):
             self._warning("attribute '{0}' already exist", name)
             _readcb = parent[name].read_cb
             _writecb = parent[name].write_cb
-            if _readcb != readcb or _writecb != writecb or \
+            if _readcb != read_cb or _writecb != write_cb or \
                     parent.default != name:
                 AssertionError("Attribute already exist but with different "
                                "parameters")
             return parent[name]
         self._debug("Adding attribute '{0}' ({1})", name, parent)
-        return build_attribute(name, parent, readcb, writecb, default,
-                              allowedArgins)
+        return build_attribute(name, parent, read_cb, write_cb, default,
+                               allowed_argins)
 
     @deprecated
-    def addAttribute(self, name, parent, readcb, writecb=None, default=False,
-                     allowedArgins=None):
-        return self.add_attribute(name, parent, readcb, writecb, default,
-                                  allowedArgins)
+    def addAttribute(self, *args, **kwargs):
+        return self.add_attribute(*args, **kwargs)
 
-    def add_command(self, FullName, readcb, writecb=None, default=False,
+    def add_command(self, full_name, read_cb, write_cb=None, default=False,
+                    allowed_argins=None,
+                    FullName=None, readcb=None, writecb=None,
                     allowedArgins=None):
         '''
             adds the command in the structure of [X:Y:]Z composed by Components
@@ -478,30 +540,45 @@ class scpi(_Logger):
             called with a '?' at the end. Or writecb if it's followed by an
             space and something that can be casted after.
         '''
-        if FullName.startswith('*'):
-            self.addSpecialCommand(FullName, readcb, writecb)
+        if FullName is not None:
+            deprecated_argument("scpi", "add_command", "FullName")
+            if full_name is None:
+                full_name = FullName
+        if readcb is not None:
+            deprecated_argument("scpi", "add_command", "readcb")
+            if read_cb is None:
+                read_cb = readcb
+        if writecb is not None:
+            deprecated_argument("scpi", "add_command", "writecb")
+            if write_cb is None:
+                write_cb = writecb
+        if allowedArgins is not None:
+            deprecated_argument("scpi", "add_command", "allowedArgins")
+            if allowed_argins is None:
+                allowed_argins = add_attribute
+
+        if full_name.startswith('*'):
+            self.add_special_command(full_name, read_cb, write_cb)
             return
-        nameParts = FullName.split(':')
-        self._debug("Prepare to add command {0}", FullName)
+        name_parts = full_name.split(':')
+        self._debug("Prepare to add command {0}", full_name)
         tree = self._command_tree
         # preprocessing:
-        for i, part in enumerate(nameParts):
+        for i, part in enumerate(name_parts):
             if len(part) == 0:
-                raise NameError("No null names allowed "
-                                "(review element {0:d} of {1})"
-                                "".format(i, FullName))
-        if len(nameParts) > 1:
-            for i, part in enumerate(nameParts[:-1]):
+                raise NameError(
+                    "No null names allowed (review element {0:d} of {1})"
+                    "".format(i, full_name))
+        if len(name_parts) > 1:
+            for i, part in enumerate(name_parts[:-1]):
                 self.add_component(part, tree)
                 tree = tree[part]
-        self.add_attribute(nameParts[-1], tree, readcb, writecb, default,
-                           allowedArgins)
+        self.add_attribute(name_parts[-1], tree, read_cb, write_cb, default,
+                           allowed_argins)
 
     @deprecated
-    def addCommand(self, FullName, readcb, writecb=None, default=False,
-                   allowedArgins=None):
-        self.add_command(FullName, readcb, writecb, default,
-                         allowedArgins)
+    def addCommand(self, *args, **kwargs):
+        self.add_command(*args, **kwargs)
 
     # done command introduction area ---
 
@@ -571,6 +648,8 @@ class scpi(_Logger):
 
     @timeit
     def _complete_partial_command(self, command, position, previous):
+        self._debug("Complet partial command {0!r} (position {1}, "
+                    "previous command {2!r}".format(cmd, position, previous))
         if position == 0:
             self._error("For command {0!r}: Not possible to start "
                         "with ':', without previous command",
@@ -585,14 +664,17 @@ class scpi(_Logger):
 
     @timeit
     def _process_special_command(self, cmd):
+        self._debug("Processing {0!r} as special command".format(cmd))
         if not self._is_access_allowed():
             return 'NotAllow'
         if cmd.count(':') > 0:  # Not expected in special commands
             return float('NaN')
         if cmd.endswith('?'):
+            self._debug("command {0!r} is a query".format(cmd))
             is_a_query = True
             cmd = cmd[:-1]
         else:
+            self._debug("command {0!r} is NOT a query".format(cmd))
             if not self._is_write_access_allowed():
                 return float('NaN')
             is_a_query = False
@@ -601,15 +683,23 @@ class scpi(_Logger):
                 cmd, args = pair, None  # write without params
             else:
                 cmd, args = pair
+            self._debug("command pair: cmd '{0!r}' arguments '{1!r}'"
+                        "".format(*pair))
         cmd = cmd.lower()
         if cmd in self._special_cmds.keys():
             if is_a_query:
-                return self._special_cmds[cmd].read()
-            return self._special_cmds[cmd].write(args)
+                answer = self._special_cmds[cmd].read()
+            else:
+                answer = self._special_cmds[cmd].write(args)
+            self._debug("Answer to {0!r}: {1!r}".format(cmd, answer))
+            return answer
+        self._error("Command {0!r} not found in {1}"
+                    "".format(cmd, self._special_cmds.keys()))
         return float('NaN')
 
     @timeit
     def _process_normal_command(self, cmd):
+        self._debug("Processing {0!r} as normal command".format(cmd))
         if not self._is_access_allowed():
             return 'NotAllow'
         command_words = cmd.split(':')
@@ -628,7 +718,8 @@ class scpi(_Logger):
                 except Exception as exc:
                     self._error("Not possible to understand word {0!r} "
                                 "(from {1!r})", word, cmd)
-                    self._debug("Exception {0}", exc)
+                    self._debug("Exception {0}\n{1}"
+                                "", exc, format_exc())
                     return 'NOK'
             else:
                 try:
@@ -643,7 +734,8 @@ class scpi(_Logger):
                     self._error("Not possible to understand word {0!r} "
                                 "(from {1!r}) separator {2!r}, params {3!r}",
                                 word, cmd, separator, params)
-                    self._debug("Exception {0}", exc)
+                    self._debug("Exception {0}\n{1}"
+                                "", exc, format_exc())
                     return 'NOK'
             try:
                 subtree = subtree[word]  # __next__()

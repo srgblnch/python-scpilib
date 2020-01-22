@@ -34,11 +34,11 @@ __license__ = "GPLv3+"
 try:
     from .logger import Logger as _Logger
     from .logger import timeit
-    from .logger import deprecated
+    from .logger import deprecated, deprecated_argument
 except Exception:
     from logger import Logger as _Logger
     from logger import timeit
-    from logger import deprecated
+    from logger import deprecated, deprecated_argument
 try:
     from numpy import ndarray as _np_ndarray
     from numpy import float16 as _np_float16
@@ -245,7 +245,6 @@ class Attribute(DictKey):
     def allowed_argins(self):
         return self._allowed_argins
 
-
     @property
     @deprecated
     def allowedArgins(self):
@@ -373,7 +372,7 @@ class Attribute(DictKey):
                                       "".format(data_format))
         # prepare the header
         length = str(len(data))
-        first_field = str(len(lenght))
+        first_field = str(len(length))
         if len(first_field) > 1:
             self._error("A {0} array cannot be codified", length)
             return float("NaN")
@@ -381,9 +380,9 @@ class Attribute(DictKey):
         return header + data
 
     def _get_root_component(self):
-        candidate = self._parent
-        while candidate._parent is not None:
-            candidate = candidate._parent
+        candidate = self.parent
+        while candidate.parent is not None:
+            candidate = candidate.parent
         return candidate
 
     @deprecated
@@ -460,7 +459,20 @@ class Attribute(DictKey):
 
 
 def build_attribute(name, parent, read_cb=None, write_cb=None, default=False,
-                    allowed_argins=None):
+                    allowed_argins=None,
+                    readcb=None, writecb=None, allowedArgins=None):
+    if readcb is not None:
+        deprecated_argument("builder", "build_attribute", "readcb")
+        if read_cb is None:
+            read_cb = readcb
+    if writecb is not None:
+        deprecated_argument("builder", "build_attribute", "writecb")
+        if write_cb is None:
+            write_cb = writecb
+    if allowedArgins is not None:
+        deprecated_argument("builder", "build_attribute", "allowedArgins")
+        if allowed_argins is None:
+            allowed_argins = allowedArgins
     attr = Attribute(name)
     attr.parent = parent
     if parent is not None and name is not None:
@@ -721,29 +733,49 @@ class SpecialCommand(Component):
     '''
     def __init__(self, *args, **kargs):
         super(SpecialCommand, self).__init__(*args, **kargs)
-        self._readcb = None
-        self._writecb = None
+        self._read_cb = None
+        self._write_cb = None
 
     @property
+    def read_cb(self):
+        return self._read_cb
+
+    @property
+    @deprecated
     def readcb(self):
-        return self._readcb
+        return self.read_cb
+
+    @read_cb.setter
+    def read_cb(self, function):
+        self._read_cb = function
 
     @readcb.setter
+    @deprecated
     def readcb(self, function):
-        self._readcb = function
+        self.read_cb = function
 
     def read(self):
-        if self._readcb is not None:
-            return self._readcb()
+        if self._read_cb is not None:
+            return self._read_cb()
         return float("NaN")
 
     @property
+    def write_cb(self):
+        return self._write_cb
+
+    @property
+    @deprecated
     def writecb(self):
-        return self._writecb
+        return self.write_cb
+
+    @write_cb.setter
+    def write_cb(self, function):
+        self._write_cb = function
 
     @writecb.setter
+    @deprecated
     def writecb(self, function):
-        self._writecb = function
+        self.write_cb = function
 
     def write(self, value=None):
         if self._writecb:
@@ -754,10 +786,19 @@ class SpecialCommand(Component):
         return float("NaN")
 
 
-def build_special_cmd(name, parent, readcb, writecb=None):
+def build_special_cmd(name, parent, read_cb, write_cb=None,
+                      readcb=None, writecb=None):
+    if readcb is not None:
+        deprecated_argument("builder", "build_special_cmd", "readcb")
+        if read_cb is None:
+            read_cb = readcb
+    if writecb is not None:
+        deprecated_argument("builder", "build_special_cmd", "writecb")
+        if write_cb is None:
+            write_cb = writecb
     special = SpecialCommand(name)
-    special.readcb = readcb
-    special.writecb = writecb
+    special.read_cb = read_cb
+    special.write_cb = write_cb
     parent[name.lower()] = special
     return special
 
@@ -768,8 +809,20 @@ def BuildSpecialCmd(*args, **kwargs):
 
 
 class Channel(Component):
-    def __init__(self, how_many=None, start_with=1, *args, **kargs):
+    def __init__(self, how_many=None, start_with=None,
+                 howMany=None, startWith=None,
+                 *args, **kargs):
         super(Channel, self).__init__(*args, **kargs)
+        if howMany is not None:
+            deprecated_argument("Channel", "__init__", "howMany")
+            if how_many is None:
+                how_many = howMany
+        if startWith is not None:
+            deprecated_argument("Channel", "__init__", "startWith")
+            if start_with is None:
+                start_with = startWith
+        if start_with is None:
+            start_with = 1
         if len(str(how_many).zfill(2)) > CHNUMSIZE:
             raise ValueError("The number of channels can not exceed "
                              "{0:d} decimal digits".format(CHNUMSIZE))
@@ -808,7 +861,18 @@ class Channel(Component):
         return self.first_channel
 
 
-def build_channel(name=None, how_many=None, parent=None, start_with=1):
+def build_channel(name=None, how_many=None, parent=None, start_with=None,
+                  howMany=None, startWith=None):
+    if howMany is not None:
+        deprecated_argument("builder", "build_channel", "howMany")
+        if how_many is None:
+            how_many = howMany
+    if startWith is not None:
+        deprecated_argument("builder", "build_channel", "startWith")
+        if start_with is None:
+            start_with = startWith
+    if start_with is None:
+        start_with = 1
     channel = Channel(name=name, how_many=how_many, start_with=start_with)
     channel.parent = parent
     if parent is not None and name is not None:
