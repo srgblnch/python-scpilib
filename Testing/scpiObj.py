@@ -92,6 +92,17 @@ class InstrumentIdentification(object):
                          self.serial_number, self.firmware_version)
 
 
+# 3 Write only special commands
+
+def sht():
+    return "wilco"
+
+def rst():
+    return "wilco"
+
+def rap():
+    return "wilco"
+
 stepTime = .1
 concatenated_cmds = 50
 wait_msg = "wait..."
@@ -141,6 +152,7 @@ def test_scpi(debug, pause, no_remove):
         try:
             for test in [
                 check_idn,
+                check_wo_special_cmds,
                 add_invalid_cmds,
                 add_valid_commands,
                 check_command_queries,
@@ -200,6 +212,43 @@ def check_idn(scpi_obj):
         print("\tUnexpected kind of exception! {0}".format(exp))
         print_exc()
         result = False, "Identification test FAILED"
+    _print_footer(result[1])
+    return result
+
+
+def check_wo_special_cmds(scpi_obj):
+    _print_header("Test Write Only special commands")
+    wilco = "wilco\r\n"
+    commands = [['SHT', sht, wilco],
+                ['RST', rst, wilco],
+                ['RAP', rap, wilco]]
+    correct, failed = 0, 0
+    for cmd_name, write_cb, expected_answer in commands:
+        try:
+            scpi_obj.add_special_command(cmd_name, read_cb=None,
+                                         write_cb=write_cb)
+            answer = ''
+            start_t = _time()
+            answer = _send2input(
+                scpi_obj, "*{0}".format(cmd_name),
+                expected_answer=expected_answer)
+            correct += 1
+        except ValueError as exc:
+            print("\tSpecial command {0} answer failed: {0}"
+                  "".format(cmd_name, exc))
+            failed += 1
+        except Exception as exc:
+            print("\tUnexpected kind of exception! {0}".format(exc))
+            print_exc()
+            failed += 1
+        print("\tWrite Only special command *{0}\n"
+              "\tAnswer: {1!r} ({2:g} ms)"
+              "".format(cmd_name, answer, (_time()-start_t)*1000))
+    if failed == 0:
+        result = True, "Write Only special commands test PASSED"
+    else:
+        print("Failed {0}/{1}".format(failed, correct+failed))
+        result = False, "Write Only special commands test FAILED"
     _print_footer(result[1])
     return result
 

@@ -754,6 +754,7 @@ class SpecialCommand(Component):
     def readcb(self, function):
         self.read_cb = function
 
+    @timeit
     def read(self):
         if self._read_cb is not None:
             return self._read_cb()
@@ -777,13 +778,18 @@ class SpecialCommand(Component):
     def writecb(self, function):
         self.write_cb = function
 
+    @timeit
     def write(self, value=None):
-        if self._writecb:
-            if value:
-                self._writecb(value)
+        self._debug("{0}.write({1})", self.name, value)
+        if self._write_cb is not None:
+            if value is not None:
+                self._debug("...")
+                ret_value = self._write_cb(value)
             else:
-                self._writecb()
-        return float("NaN")
+                ret_value = self._write_cb()
+            self._debug("{0} write({1}): {2}",
+                        self.name, value, ret_value)
+            return ret_value
 
 
 def build_special_cmd(name, parent, read_cb, write_cb=None,

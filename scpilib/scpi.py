@@ -680,16 +680,18 @@ class scpi(_Logger):
             is_a_query = False
             pair = cmd.split(' ', 1)
             if len(pair) == 1:
-                cmd, args = pair, None  # write without params
+                cmd, args = cmd, None  # write without params
             else:
                 cmd, args = pair
-            self._debug("command pair: cmd '{0!r}' arguments '{1!r}'"
-                        "".format(*pair))
+            self._debug("command pair: cmd {0!r} arguments {1!r}"
+                        "".format(cmd, args))
         cmd = cmd.lower()
         if cmd in self._special_cmds.keys():
             if is_a_query:
                 answer = self._special_cmds[cmd].read()
             else:
+                self._debug("call {0}.{1}".format(self._special_cmds[cmd],
+                                                  self._special_cmds[cmd].write))
                 answer = self._special_cmds[cmd].write(args)
             self._debug("Answer to {0!r}: {1!r}".format(cmd, answer))
             return answer
