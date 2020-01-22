@@ -87,8 +87,9 @@ class InstrumentIdentification(object):
         self._firmware_version = str(value)
 
     def idn(self):
-        return "{0},{1},{2},{3}".format(self.manufacturer, self.instrument,
-                                    self.serial_number, self.firmware_version)
+        return "{0},{1},{2},{3}" \
+               "".format(self.manufacturer, self.instrument,
+                         self.serial_number, self.firmware_version)
 
 
 stepTime = .1
@@ -257,7 +258,7 @@ def add_valid_commands(scpi_obj):
         scpi_obj.add_command('source:voltage:lower',
                              read_cb=voltage_obj.lowerLimit,
                              write_cb=voltage_obj.lowerLimit)
-        scpi_obj.add_command('source:voltage:value', 
+        scpi_obj.add_command('source:voltage:value',
                              read_cb=voltage_obj.readTest, default=True)
         scpi_obj.add_command('source:voltage:exception',
                              read_cb=voltage_obj.exceptionTest)
@@ -307,7 +308,8 @@ def add_valid_commands(scpi_obj):
                     #  * have the appropriate leafs.
         # * Example of how can be added a node with channels in the scpi tree
         ch_cmd = 'channel'
-        ch_obj = scpi_obj.add_channel(ch_cmd, n_channels, scpi_obj.command_tree)
+        ch_obj = scpi_obj.add_channel(
+            ch_cmd, n_channels, scpi_obj.command_tree)
         ch_current_obj = ChannelTest(n_channels)
         ch_voltage_obj = ChannelTest(n_channels)
         for (subcomponent, sub_cmd_obj) in [('current', ch_current_obj),
@@ -322,8 +324,8 @@ def add_valid_commands(scpi_obj):
                         default = True
                     else:
                         default = False
-                    attr_obj = scpi_obj.add_attribute(attr_name, subcomponent_obj,
-                                                      cb_func, default=default)
+                    attr_obj = scpi_obj.add_attribute(
+                        attr_name, subcomponent_obj, cb_func, default=default)
         # * Example of how can be nested channel type components in a tree that
         #   already have this channels componets defined.
         meas_cmd = 'measurements'
@@ -344,8 +346,8 @@ def add_valid_commands(scpi_obj):
                         default = True
                     else:
                         default = False
-                    attr_obj = scpi_obj.add_attribute(attr_name, subcomponent_obj,
-                                                      cb_func, default=default)
+                    attr_obj = scpi_obj.add_attribute(
+                        attr_name, subcomponent_obj, cb_func, default=default)
         print("Command tree build: {!r}".format(scpi_obj.command_tree))
         result = True, "Valid commands test PASSED"
         # TODO: channels with channels until the attributes
@@ -597,7 +599,7 @@ def check_multiple_commands(scpi_obj):
                 lst.append(bar)
             cmds = ";".join(x for x in lst)
             cmds_repr = "".join("\t\t{0}\n".format(cmd)
-                                    for cmd in cmds.split(';'))
+                                for cmd in cmds.split(';'))
             start_t = _time()
             answer = _send2input(scpi_obj, cmds)
             answers = _cut_multiple_answer(answer)
@@ -948,11 +950,11 @@ class LockThreadedTest(object):
                           'ownerRW': "SYSTEM:LOCK?",
                           'ownerWO': "SYSTEM:WLOCK?"}
         self._read_cmd = "{0}:LOWEr?;{1}?;{2}:UPPEr?;{3};{4}" \
-                        "".format(self._commands['base_cmd'],
-                                  self._commands['base_cmd'],
-                                  self._commands['base_cmd'],
-                                  self._commands['ownerRW'],
-                                  self._commands['ownerWO'])
+                         "".format(self._commands['base_cmd'],
+                                   self._commands['base_cmd'],
+                                   self._commands['base_cmd'],
+                                   self._commands['ownerRW'],
+                                   self._commands['ownerWO'])
         self._write_cmd = "%s:LOWEr %%s;%s:UPPEr %%s;%s;%s"\
             % (self._commands['base_cmd'],  self._commands['base_cmd'],
                self._commands['ownerRW'], self._commands['ownerWO'])
@@ -1122,7 +1124,8 @@ class LockThreadedTest(object):
     def _check_write(self, thread_name, socket):
         event = self._write_access[thread_name]
         if event.is_set():
-            socket.send(self._write_cmd % (_randint(-100, 0), _randint(0, 100)))
+            socket.send(
+                self._write_cmd % (_randint(-100, 0), _randint(0, 100)))
             event.result = socket.recv(1024)
             event.clear()
 
