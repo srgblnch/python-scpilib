@@ -259,6 +259,11 @@ class Logger(object):
     def devlogger(self):
         return self.logger_obj
 
+    @property
+    @deprecated
+    def _devlogger(self):
+        return self.logger_obj
+
     @logger_obj.setter
     def logger_obj(self, obj):
         self.__logger_obj = obj
@@ -266,6 +271,11 @@ class Logger(object):
     @devlogger.setter
     @deprecated
     def devlogger(self, obj):
+        self.logger_obj = obj
+
+    @_devlogger.setter
+    @deprecated
+    def _devlogger(self, obj):
         self.logger_obj = obj
 
     @property
