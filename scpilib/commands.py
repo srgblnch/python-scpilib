@@ -783,7 +783,6 @@ class SpecialCommand(Component):
         self._debug("{0}.write({1})", self.name, value)
         if self._write_cb is not None:
             if value is not None:
-                self._debug("...")
                 ret_value = self._write_cb(value)
             else:
                 ret_value = self._write_cb()
@@ -792,7 +791,7 @@ class SpecialCommand(Component):
             return ret_value
 
 
-def build_special_cmd(name, parent, read_cb, write_cb=None,
+def build_special_cmd(name, parent=None, read_cb=None, write_cb=None,
                       readcb=None, writecb=None):
     if readcb is not None:
         deprecated_argument("builder", "build_special_cmd", "readcb")

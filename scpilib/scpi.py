@@ -394,7 +394,7 @@ class scpi(_Logger):
 
     # # command introduction area ---
 
-    def add_special_command(self, name, read_cb, readcb=None,
+    def add_special_command(self, name, read_cb=None, readcb=None,
                             write_cb=None, writecb=None):
         '''
             Adds a command '*%s'%(name). If finishes with a '?' mark it will
@@ -462,7 +462,7 @@ class scpi(_Logger):
     def addComponent(self, *args, **kwargs):
         return self.add_component(*args, **kwargs)
 
-    def add_channel(self, name, how_many, parent, start_with=None,
+    def add_channel(self, name, how_many=None, parent=None, start_with=None,
                     howMany=None, startWith=None):
         if howMany is not None:
             deprecated_argument("scpi", "add_channel", "howMany")
@@ -477,7 +477,7 @@ class scpi(_Logger):
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept components"
                             "".format(name))
-        if name in parent.keys():
+        if isinstance(parent, dict) and name in parent.keys():
             # self._warning("component '%s' already exist" % (name))
             _howMany = parent[name].howManyChannels
             _startWith = parent[name].firstChannel
@@ -487,14 +487,14 @@ class scpi(_Logger):
             # once here the user is adding exactly what it's trying to add
             # this is more like a get
             return parent[name]
-        self._debug("Adding component '{0}' ({1})", name, parent)
+        self._debug("Adding component '{0}' (parent: {1})", name, parent)
         return build_channel(name, how_many, parent, start_with)
 
     @deprecated
     def addChannel(self, *args, **kwargs):
         return self.add_channel(*args, **kwargs)
 
-    def add_attribute(self, name, parent, read_cb, write_cb=None,
+    def add_attribute(self, name, parent=None, read_cb=None, write_cb=None,
                       default=False, allowed_argins=None,
                       readcb=None, writecb=None, allowedArgins=None):
         if readcb is not None:
@@ -512,7 +512,7 @@ class scpi(_Logger):
         if not hasattr(parent, 'keys'):
             raise TypeError("For {0}, parent doesn't accept attributes"
                             "".format(name))
-        if name in parent.keys():
+        if isinstance(parent, dict) and name in parent.keys():
             self._warning("attribute '{0}' already exist", name)
             _readcb = parent[name].read_cb
             _writecb = parent[name].write_cb
