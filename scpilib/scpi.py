@@ -104,8 +104,8 @@ class scpi(_Logger):
         super(scpi, self).__init__(*args, **kwargs)
         self._name = "scpi"
         self._command_tree = command_tree or Component()
-        self._command_tree.logEnable(self.logState())
-        self._command_tree.logLevel(self.logGetLevel())
+        self._command_tree.enable_log(self.log_state())
+        self._command_tree.log_level = self.log_level
         if specialCommands is not None:
             deprecated_argument("scpi", "__init__", "specialCommands")
             if special_commands is None:
@@ -306,8 +306,8 @@ class scpi(_Logger):
         self._data_format = 'ASCII'
         self.add_attribute('DataFormat', self._command_tree,
                            self.data_format, self.data_format,
-                           allowedArgins=['ASCII', 'QUADRUPLE', 'DOUBLE',
-                                          'SINGLE', 'HALF'])
+                           allowed_argins=['ASCII', 'QUADRUPLE', 'DOUBLE',
+                                           'SINGLE', 'HALF'])
 
     def __build_system_component(self, write_lock, writeLock=None):
         if writeLock is not None:

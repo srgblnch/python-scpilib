@@ -223,8 +223,8 @@ class Attribute(DictKey):
     @parent.setter
     def parent(self, value):
         if value is not None:
-            self.logEnable(value.logState())
-            self.logLevel(value.logGetLevel())
+            self.enable_log(value.log_state())
+            self.log_level = value.log_level
             self._parent = value
 
     @property
@@ -552,8 +552,8 @@ class Component(_Logger, dict):
     @parent.setter
     def parent(self, value):
         if value is not None:
-            self.logEnable(value.logState())
-            self.logLevel(value.logGetLevel())
+            self.enable_log(value.log_state())
+            self.log_level = value.log_level
             self._parent = value
 
     @property

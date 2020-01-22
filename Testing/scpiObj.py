@@ -146,7 +146,7 @@ def test_scpi(debug, pause, no_remove):
     _print_header("Testing scpi main class (version {0})".format(_version()))
     # ---- BuildSpecial('IDN',specialSet,identity.idn)
     with scpi(local=True, debug=debug, write_lock=True) as scpi_obj:
-        print("Log information: {0}".format(scpi_obj.loggingFile()))
+        print("Log information: {0}".format(scpi_obj.logging_file()))
         results = []
         result_msgs = []
         try:

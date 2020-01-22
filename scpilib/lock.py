@@ -78,7 +78,7 @@ class Locker(_Logger):
             one) do it, else reject (even if the owner recalls it).
         """
         # self._debug("%s request()" % _current_thread().name)
-        if not self._hasOwner() or self._hasExpired():
+        if not self._has_owner() or self._has_expired():
             self._doLock(timeout)
             return True
         else:
@@ -122,7 +122,7 @@ class Locker(_Logger):
             Check if the lock is owned.
         """
         # self._debug("%s isLock()" % _current_thread().name)
-        if self._hasOwner() and not self._hasExpired():
+        if self._has_owner() and not self._has_expired():
             return True
         return False
 
