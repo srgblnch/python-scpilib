@@ -62,6 +62,7 @@ setup(name=__project__,
                    ],
       packages=find_packages(),
       url=__url__,
+      install_requires=["numpy"],
       )
 
 # for the classifiers review see:
